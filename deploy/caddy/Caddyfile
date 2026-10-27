@@ -1,0 +1,39 @@
+# HTTPS for the apex and www (certificates from Let's Encrypt, renewed automatically).
+# Values come from .env via docker-compose: SITE_DOMAIN, ACME_EMAIL, PROXY_MODE, APP_PORT.
+{
+	email {$ACME_EMAIL}
+	# PROXY_MODE=direct (default): visitors connect straight to this server (Cloudflare "DNS only").
+	# PROXY_MODE=cloudflare: traffic arrives through Cloudflare's proxy (orange cloud);
+	# trust Cloudflare's addresses and take the visitor's IP from CF-Connecting-IP.
+	import /etc/caddy/proxy-{$PROXY_MODE:direct}.caddy
+	{$CADDY_GLOBAL_OPTIONS}
+}
+
+www.{$SITE_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
+
+{$SITE_DOMAIN} {
+	request_body {
+		max_size 1MB
+	}
+
+	reverse_proxy 127.0.0.1:{$APP_PORT:3000} {
+		# The app trusts exactly one proxy hop (TRUST_PROXY=1) and reads the last X-Forwarded-For
+		# entry. Replace whatever the client sent with the address Caddy determined, so it can't
+		# be spoofed. {client_ip} honours PROXY_MODE (Cloudflare's header only from Cloudflare IPs).
+		header_up X-Forwarded-For {client_ip}
+		header_up -CF-Connecting-IP
+		transport http {
+			dial_timeout 5s
+			keepalive 30s
+		}
+	}
+
+	header -Server
+
+	log {
+		output stdout
+		format json
+	}
+}

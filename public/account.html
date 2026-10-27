@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My account · PBAT DOOR TO DOOR</title>
+<meta name="theme-color" content="#06492a">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" id="site-nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="PBAT Door to Door home">
+      <img class="brand-logo" src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#movement">Movement</a>
+      <a href="/#about">The President</a>
+      <a href="/#works">His works</a>
+      <a href="/#gallery">Gallery</a>
+    </div>
+    <div class="nav-auth" id="nav-auth">
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn small" href="/login">Join now</a>
+    </div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-drawer" id="nav-drawer" hidden></div>
+</nav>
+
+<main class="page" id="main">
+  <div class="wrap">
+    <div class="skeleton" id="boot" aria-label="Loading your account"><div class="sk" style="height:340px"></div><div class="sk" style="height:420px"></div></div>
+
+    <div id="content" hidden>
+      <section class="acc-hero">
+        <div class="acc-id">
+          <div class="avatar" id="avatar"></div>
+          <div>
+            <p class="acc-greet" id="greet">Welcome back</p>
+            <h1 id="name"></h1>
+            <div class="acc-meta"><span id="email"></span><span class="dot">•</span><span>Member since <b id="since"></b></span></div>
+          </div>
+        </div>
+        <div class="acc-strength">
+          <div class="ring" id="ring" style="--p:0"><span id="ring-num">0%</span></div>
+          <div class="acc-strength-text">
+            <strong id="strength-title">Profile strength</strong>
+            <span id="strength-hint"></span>
+            <div id="prompt"><button class="btn gold small" id="prompt-btn" type="button">Complete my profile</button></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="account account-v2">
+        <div style="display:grid;gap:22px">
+          <section class="card" id="view">
+            <div class="card-head">
+              <h2>My details</h2>
+              <button class="btn small ghost" id="edit">Edit</button>
+            </div>
+            <dl class="details" id="details"></dl>
+          </section>
+
+          <form class="card" id="edit-form" hidden novalidate>
+            <div class="card-head"><h2 id="form-title">Edit my details</h2></div>
+            <div id="fields"></div>
+            <label class="consent" id="consent-row" hidden>
+              <input type="checkbox" id="consent">
+              <span>I agree that PBAT DOOR TO DOOR may store these details and contact me about volunteer activities. I can ask for my details to be updated or removed at any time.</span>
+            </label>
+            <div class="msg err" id="edit-err"></div>
+            <div style="display:flex;gap:10px;margin-top:6px">
+              <button class="btn" id="save" type="submit"><span class="spinner"></span><span>Save changes</span></button>
+              <button class="btn ghost" id="cancel" type="button">Cancel</button>
+            </div>
+          </form>
+        </div>
+        <div style="display:grid;gap:22px;align-content:start">
+          <section class="card" id="methods">
+            <div class="card-head"><h2>Sign-in methods</h2></div>
+            <p class="methods-sub">Link both your email and phone number so you can log in with either one.</p>
+            <div id="method-list"></div>
+            <form id="link-form" class="link-form" hidden novalidate>
+              <div id="link-a">
+                <div class="field" data-field="link">
+                  <label for="link-input" id="link-label">Email address</label>
+                  <input id="link-input" autocapitalize="off" spellcheck="false">
+                  <div class="err"></div>
+                </div>
+                <div class="link-actions">
+                  <button class="btn small" id="link-send" type="submit"><span class="spinner"></span><span>Send code</span></button>
+                  <button class="btn small ghost" id="link-cancel" type="button">Cancel</button>
+                </div>
+              </div>
+              <div id="link-b" hidden>
+                <p class="methods-sub" id="link-sent"></p>
+                <div class="otp" id="link-otp" role="group" aria-label="6-digit code"></div>
+                <div class="link-actions" style="margin-top:12px">
+                  <button class="btn small" id="link-verify" type="button"><span class="spinner"></span><span>Verify &amp; link</span></button>
+                  <button class="linkish" id="link-resend" type="button" disabled>Resend code</button>
+                  <button class="linkish" id="link-back" type="button">Change</button>
+                </div>
+              </div>
+              <div class="msg err" id="link-err"></div>
+              <div class="msg dev" id="link-dev"></div>
+              <div id="link-recaptcha"></div>
+            </form>
+          </section>
+          <section class="card">
+            <div class="card-head"><h2>Logged-in devices</h2></div>
+            <div id="sessions"></div>
+            <div class="devices-foot">
+              <span>Lost a phone or used a shared computer?</span>
+              <button class="btn small danger" id="logout-all" type="button"><span class="spinner"></span><span>Log out of all devices</span></button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  import { $, api, setLoading, message, renderProfileFields, readProfileFields, checkProfile, showFieldErrors, prettyPhone, mountNav, toast, logout, createOtp, cooldown, devCodeNote } from '/app.js';
+  import { firebasePhone } from '/phone.js';
+
+  const { ok, data } = await api('/api/me');
+  if (!ok) { location.replace('/login'); await new Promise(() => {}); }
+  const { data: opts } = await api('/api/options');
+  let user = data.member;
+  mountNav({ member: user });
+
+  const LABELS = [
+    ['full_name', 'Full name'], ['email', 'Email'], ['phone', 'Phone'], ['gender', 'Gender'],
+    ['date_of_birth', 'Date of birth'], ['state', 'State'], ['lga', 'LGA'], ['ward', 'Ward'],
+    ['polling_unit', 'Polling unit'], ['occupation', 'Occupation'], ['address', 'Address'], ['interests', 'Can help with'],
+  ];
+  const fmtDate = (ts) => new Date(ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const fmtDob = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+
+  function render() {
+    const contact = user.emailVerified ? user.email : prettyPhone(user.phone) || user.email;
+    $('#avatar').textContent = user.full_name ? user.full_name.split(' ').map((w) => w[0]).slice(0, 2).join('') : (user.email ? user.email[0].toUpperCase() : '👤');
+    $('#name').textContent = user.full_name || 'New member';
+    $('#email').textContent = contact;
+    $('#greet').textContent = user.profileComplete ? 'Welcome back' : 'Welcome to the movement';
+    // profile strength: share of the useful details filled in
+    const checks = [['full_name','your name'],['state','your state'],['lga','your LGA'],['ward','your ward'],['polling_unit','your polling unit'],
+      ['phone','a phone number'],['email','an email'],['date_of_birth','your date of birth'],['gender','your gender'],['occupation','your occupation'],['interests','how you can help']];
+    const missing = checks.filter(([k]) => !(Array.isArray(user[k]) ? user[k].length : user[k]));
+    const pct = Math.round(((checks.length - missing.length) / checks.length) * 100);
+    $('#ring').style.setProperty('--p', pct); $('#ring-num').textContent = `${pct}%`;
+    $('#strength-title').textContent = pct === 100 ? 'Profile complete' : 'Profile strength';
+    $('#strength-hint').textContent = pct === 100 ? 'Thank you! Your details are all in.' : `Add ${missing.slice(0, 2).map(([, l]) => l).join(' and ')}${missing.length > 2 ? ` and ${missing.length - 2} more` : ''}.`;
+    $('#prompt-btn').textContent = user.profileComplete ? 'Add missing details' : 'Complete my profile';
+    $('#prompt').hidden = pct === 100;
+    $('#edit').hidden = !user.profileComplete;   // new members use the 'Complete your profile' button instead
+    $('#since').textContent = fmtDate(user.createdAt);
+    renderMethods();
+    const dl = $('#details'); dl.innerHTML = '';
+    for (const [key, label] of LABELS) {
+      let val = user[key];
+      if (key === 'interests') val = val.join(', ');
+      if (key === 'date_of_birth') val = fmtDob(val);
+      if (key === 'phone') val = prettyPhone(val);
+      if ((key === 'email' && user.emailVerified) || (key === 'phone' && user.phoneVerified)) val += '  ✓ verified';
+      const wrap = document.createElement('div');
+      const dt = document.createElement('dt'); dt.textContent = label;
+      const dd = document.createElement('dd'); dd.textContent = val || 'Not added'; if (!val) dd.className = 'empty';
+      wrap.append(dt, dd); dl.append(wrap);
+    }
+  }
+
+  function deviceName(ua = '') {
+    const b = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Chrome\//.test(ua) ? 'Chrome'
+      : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+    const os = /iPhone|iPad/.test(ua) ? 'iPhone/iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows'
+      : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : '';
+    return os ? `${b} on ${os}` : b;
+  }
+  function ago(ts) {
+    const m = Math.round((Date.now() - ts) / 60000);
+    if (m < 1) return 'just now'; if (m < 60) return `${m} min ago`;
+    const h = Math.round(m / 60); if (h < 24) return `${h} h ago`;
+    return fmtDate(ts);
+  }
+  function renderSessions(list) {
+    const box = $('#sessions'); box.innerHTML = '';
+    for (const s of list) {
+      const row = document.createElement('div'); row.className = 'session';
+      const name = document.createElement('span'); name.textContent = deviceName(s.userAgent);
+      if (s.current) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'THIS DEVICE'; name.append(t); }
+      const when = document.createElement('span'); when.className = 'when'; when.textContent = s.current ? 'Active now' : ago(s.lastSeen);
+      row.append(name, when); box.append(row);
+    }
+  }
+
+  render(); renderSessions(data.sessions);
+  if (new URLSearchParams(location.search).has('welcome')) {
+    history.replaceState(null, '', '/account');
+    toast("✓ You're in. You'll stay logged in on this device until you log out.");
+  }
+  $('#boot').hidden = true; $('#content').hidden = false;
+
+  // Edit details
+  const fields = $('#fields');
+  function openForm() {
+    renderProfileFields(fields, opts, user);
+    message($('#edit-err'), '');
+    const first = !user.profileComplete;
+    $('#form-title').textContent = first ? 'Tell us about yourself' : 'Edit my details';
+    $('#consent-row').hidden = !first; $('#consent').checked = false;
+    $('#save').querySelector('span:last-child').textContent = first ? 'Save my details' : 'Save changes';
+    $('#prompt').hidden = true;
+    $('#view').hidden = true; $('#edit-form').hidden = false; $('#f-full_name').focus();
+    $('#edit-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  $('#edit').addEventListener('click', openForm);
+  $('#prompt-btn').addEventListener('click', openForm);
+  if (location.hash === '#edit') { history.replaceState(null, '', '/account'); openForm(); }
+  window.addEventListener('hashchange', () => { if (location.hash === '#edit') { history.replaceState(null, '', '/account'); openForm(); } });
+  $('#cancel').addEventListener('click', () => { $('#edit-form').hidden = true; $('#view').hidden = false; render(); });
+  $('#edit-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const p = readProfileFields(fields);
+    if (!showFieldErrors(fields, checkProfile(p, user))) return message($('#edit-err'), 'Please fix the highlighted fields.');
+    const first = !user.profileComplete;
+    if (first && !$('#consent').checked) return message($('#edit-err'), 'Please tick the box to agree before saving.');
+    const btn = $('#save'); setLoading(btn, true);
+    const res = await api('/api/me', { ...p, consent: first ? true : undefined });
+    setLoading(btn, false);
+    if (!res.ok) {
+      if (res.data.fields) showFieldErrors(fields, res.data.fields);
+      if (res.status === 409) {
+        const type = res.data.fields?.email ? 'email' : 'phone';
+        openLink(type, type === 'email' ? p.email : p.phone);
+        return message($('#edit-err'), `That ${type === 'email' ? 'email' : 'number'} already has its own account. Verify it under "Sign-in methods" to join the two accounts.`);
+      }
+      return message($('#edit-err'), res.data.error || 'Something went wrong.');
+    }
+    user = res.data.member; render(); mountNav({ member: user });
+    $('#edit-form').hidden = true; $('#view').hidden = false;
+    toast(first ? '✓ Profile saved. Welcome aboard!' : '✓ Details saved');
+    $('#view').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+
+  // ---- Sign-in methods: link (and verify) a second email or phone ----
+  function renderMethods() {
+    const list = $('#method-list'); list.innerHTML = '';
+    for (const [type, icon, label] of [['email', '✉️', 'Email'], ['phone', '📱', 'Phone']]) {
+      const verified = type === 'email' ? user.emailVerified : user.phoneVerified;
+      const value = type === 'email' ? user.email : prettyPhone(user.phone);
+      const row = document.createElement('div'); row.className = 'method';
+      const ic = document.createElement('span'); ic.className = 'method-icon'; ic.textContent = icon;
+      const txt = document.createElement('div'); txt.className = 'method-text';
+      const b = document.createElement('strong'); b.textContent = label;
+      const v = document.createElement('span'); v.textContent = value || 'Not linked yet';
+      txt.append(b, v); row.append(ic, txt);
+      if (verified) {
+        const ok = document.createElement('span'); ok.className = 'method-ok'; ok.textContent = '✓ Verified'; row.append(ok);
+      } else if (type === 'email' || opts.sms) {
+        const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn small ghost';
+        btn.textContent = value ? 'Verify' : 'Link';
+        btn.addEventListener('click', () => openLink(type, type === 'email' ? user.email : user.phone));
+        row.append(btn);
+      }
+      list.append(row);
+    }
+  }
+
+  let linkType = 'email', linkValue = '';
+  const linkOtp = createOtp($('#link-otp'), () => $('#link-verify').click());
+  const useFb = () => linkType === 'phone' && opts.phoneVia === 'firebase';
+  const fbPhone = opts.firebase ? firebasePhone(opts.firebase, $('#link-recaptcha')) : null;
+
+  function openLink(type, value = '') {
+    linkType = type;
+    $('#link-label').textContent = type === 'email' ? 'Email address' : 'Phone number';
+    const inp = $('#link-input');
+    inp.type = type === 'email' ? 'email' : 'tel';
+    inp.inputMode = type === 'email' ? 'email' : 'tel';
+    inp.placeholder = type === 'email' ? 'you@example.com' : '0803 123 4567';
+    inp.value = type === 'phone' ? prettyPhone(value) : (value || '');
+    $('[data-field="link"]').classList.remove('invalid');
+    message($('#link-err'), ''); message($('#link-dev'), '');
+    $('#link-a').hidden = false; $('#link-b').hidden = true; $('#link-form').hidden = false;
+    $('#methods').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    inp.focus({ preventScroll: true });
+  }
+  const closeLink = () => { $('#link-form').hidden = true; clearInterval($('#link-resend')._timer); };
+  $('#link-cancel').addEventListener('click', closeLink);
+  $('#link-back').addEventListener('click', () => { $('#link-a').hidden = false; $('#link-b').hidden = true; message($('#link-err'), ''); });
+
+  async function sendLink() {
+    if (useFb()) {
+      try { await fbPhone.send(linkValue); } catch (e) { return e.message; }
+      $('#link-sent').textContent = `We sent a 6-digit code by text message to ${prettyPhone(linkValue) || linkValue}.`;
+      cooldown($('#link-resend'), 60);
+      return null;
+    }
+    const { ok, data } = await api('/api/me/link/start', { identifier: linkValue });
+    if (!ok) return data.error || 'Something went wrong.';
+    $('#link-sent').textContent = `We sent a 6-digit code by ${data.via === 'email' ? 'email' : 'text message'} to ${data.sentTo}.`;
+    devCodeNote($('#link-dev'), data.devCode);
+    cooldown($('#link-resend'), data.cooldown);
+    return null;
+  }
+
+  $('#link-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const v = $('#link-input').value.trim();
+    const bad = linkType === 'email' ? !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) : !/^(\+?234|0)[789]\d{9}$/.test(v.replace(/[\s\-()]/g, ''));
+    const f = $('[data-field="link"]');
+    f.classList.toggle('invalid', bad);
+    $('.err', f).textContent = bad ? (linkType === 'email' ? 'Enter a valid email address.' : 'Enter a valid Nigerian phone number, e.g. 0803 123 4567.') : '';
+    if (bad) return;
+    linkValue = v; message($('#link-err'), '');
+    const btn = $('#link-send'); setLoading(btn, true);
+    const err = await sendLink();
+    setLoading(btn, false);
+    if (err) return message($('#link-err'), err);
+    $('#link-a').hidden = true; $('#link-b').hidden = false; linkOtp.clear();
+  });
+
+  $('#link-resend').addEventListener('click', async () => {
+    message($('#link-err'), '');
+    const err = await sendLink();
+    message($('#link-err'), err || 'A new code is on its way.', err ? 'err' : 'ok');
+    linkOtp.clear();
+  });
+
+  $('#link-verify').addEventListener('click', async () => {
+    const code = linkOtp.value();
+    if (code.length !== 6) return message($('#link-err'), 'Enter all 6 digits.');
+    const btn = $('#link-verify'); if (btn.disabled) return;
+    setLoading(btn, true);
+    let res;
+    if (useFb()) {
+      try { res = await api('/api/me/link/firebase', { idToken: await fbPhone.confirm(code) }); }
+      catch (e) { res = { ok: false, data: { error: e.message } }; }
+    } else {
+      res = await api('/api/me/link/verify', { identifier: linkValue, code });
+    }
+    setLoading(btn, false);
+    if (!res.ok) { linkOtp.shake(); linkOtp.clear(); return message($('#link-err'), res.data.error || 'Something went wrong.'); }
+    user = res.data.member; closeLink(); render(); mountNav({ member: user });
+    if (!$('#edit-form').hidden) { $('#edit-form').hidden = true; $('#view').hidden = false; }
+    const sres = await api('/api/me'); if (sres.ok) renderSessions(sres.data.sessions);
+    toast(res.data.merged ? '✓ Accounts joined. You can now log in with your email or your phone.' : `✓ ${linkType === 'email' ? 'Email' : 'Phone number'} linked and verified`);
+  });
+
+  // Log out of every device
+  $('#logout-all').addEventListener('click', (e) => {
+    if (confirm('Log out of every device, including this one?')) { setLoading(e.currentTarget, true); logout(true); }
+  });
+</script>
+</body>
+</html>

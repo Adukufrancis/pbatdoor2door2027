@@ -1,0 +1,31 @@
+{
+  "name": "pbat-door-to-door",
+  "version": "2.0.0",
+  "private": true,
+  "description": "PBAT DOOR TO DOOR volunteer website with email/phone-code sign-up and login.",
+  "main": "server.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "migrate": "node scripts/migrate.js",
+    "precompress": "node scripts/precompress.js",
+    "test": "node --test \"test/unit/*.test.js\"",
+    "test:e2e": "node --test --test-concurrency=1 \"test/e2e/*.test.js\""
+  },
+  "dependencies": {
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "helmet": "^8.1.0",
+    "jose": "^5.10.0",
+    "nodemailer": "^10.2.1",
+    "pg": "^8.16.0",
+    "pino": "^10.0.0",
+    "pino-http": "^11.0.0"
+  }
+}

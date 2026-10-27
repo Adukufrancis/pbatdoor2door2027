@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join or log in · PBAT DOOR TO DOOR</title>
+<meta name="theme-color" content="#06492a">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" id="site-nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="PBAT Door to Door home">
+      <img class="brand-logo" src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#movement">Movement</a>
+      <a href="/#about">The President</a>
+      <a href="/#works">His works</a>
+      <a href="/#gallery">Gallery</a>
+    </div>
+    <div class="nav-auth" id="nav-auth">
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn small" href="/login">Join now</a>
+    </div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-drawer" id="nav-drawer" hidden></div>
+</nav>
+
+<main class="auth-page" id="main">
+  <aside class="auth-brand" aria-hidden="false">
+    <div class="auth-brand-inner">
+      <img src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" class="auth-logo" width="900" height="563">
+      <h2>Your street. Your ward. <em>Your voice.</em></h2>
+      <ul class="auth-points">
+        <li><span>1</span><div><strong>Sign in in seconds</strong>No password. Just a 6-digit code to your email or phone.</div></li>
+        <li><span>2</span><div><strong>Find your polling unit</strong>Pick from INEC's official lists, or let us find the ones near you.</div></li>
+        <li><span>3</span><div><strong>Join volunteers near you</strong>Door-to-door outreach in your ward and LGA.</div></li>
+      </ul>
+      <p class="auth-foot">PBAT DOOR TO DOOR Movement · 2027</p>
+    </div>
+  </aside>
+  <div class="auth-main">
+    <div class="boot step active" id="s-boot">Loading…</div>
+
+    <!-- Step 1: email or phone -->
+    <form class="card narrow step" id="s-id" novalidate>
+      <h1>Join or log in</h1>
+      <p class="sub">Enter your email or phone number. We'll send you a 6-digit code. New here? This creates your account.</p>
+      <div class="field" data-field="identifier">
+        <label for="identifier">Email or phone number</label>
+        <input id="identifier" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"
+               placeholder="you@example.com or 0803 123 4567">
+        <div class="err"></div>
+      </div>
+      <p class="id-hint" id="hint" hidden></p>
+      <button class="btn block" id="send" type="submit" style="margin-top:16px"><span class="spinner"></span><span>Continue</span></button>
+      <div class="msg err" id="id-err"></div>
+      <div id="recaptcha"></div>
+      <p class="switch" style="font-size:13px">No password needed. You'll stay logged in on this device until you log out. <span style="opacity:.5">v4</span></p>
+    </form>
+
+    <!-- Step 2: code -->
+    <form class="card narrow step" id="s-code" novalidate>
+      <h1>Enter your code</h1>
+      <p class="sub" id="sent-msg"></p>
+      <div class="otp" id="otp" role="group" aria-label="6-digit code"></div>
+      <button class="btn block" id="verify" type="submit" style="margin-top:16px"><span class="spinner"></span><span>Continue</span></button>
+      <div class="msg err" id="code-err"></div>
+      <div class="msg dev" id="dev-note"></div>
+      <div class="row">
+        <button type="button" class="linkish" id="back">← Use a different email or number</button>
+        <button type="button" class="linkish" id="resend" disabled>Resend code</button>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script type="module">
+  import { $, api, setLoading, message, devCodeNote, showStep, createOtp, cooldown, mountNav } from '/app.js';
+
+  let identifier = '';
+  const me = await api('/api/me');
+  if (me.ok) location.replace('/account');
+  mountNav({ member: null, page: 'login' });
+
+  const { data: opts } = await api('/api/options');
+  if (!opts.sms) {
+    $('#hint').hidden = false;
+    $('#hint').textContent = 'Sign-in by phone is coming soon. Please use your email for now.';
+    $('label[for="identifier"]').textContent = 'Email address';
+    $('#identifier').placeholder = 'you@example.com';
+  }
+  showStep('s-id'); $('#identifier').focus();
+
+  // ---- Phone codes through Google Firebase (when the server says so) ----
+  const useFirebase = (id) => opts.phoneVia === 'firebase' && !id.includes('@');
+  const toE164 = (v) => { const d = v.replace(/[^\d]/g, ''); return d.startsWith('234') ? `+${d}` : `+234${d.replace(/^0/, '')}`; };
+  const maskPhone = (p) => p.replace(/^(\+234)(\d{3})\d{4}(\d{3})$/, '$1 $2 ••• •$3');
+  let fb = null, confirmation = null, verifier = null;
+  async function firebase() {
+    if (fb) return fb;
+    const base = opts.firebase.sdk;
+    const [{ initializeApp }, auth] = await Promise.all([import(`${base}/firebase-app.js`), import(`${base}/firebase-auth.js`)]);
+    const app = initializeApp({ apiKey: opts.firebase.apiKey, authDomain: opts.firebase.authDomain, projectId: opts.firebase.projectId });
+    fb = { ...auth, auth: auth.getAuth(app) };
+    fb.auth.languageCode = 'en';
+    return fb;
+  }
+  const fbError = (e) => ({
+    'auth/invalid-phone-number': 'That phone number doesn\'t look right. Check it and try again.',
+    'auth/too-many-requests': 'Too many attempts from this device. Please wait a while and try again, or use your email.',
+    'auth/quota-exceeded': 'Phone sign-in is busy right now. Please use your email, or try again later.',
+    'auth/captcha-check-failed': 'The security check failed. Please reload the page and try again.',
+    'auth/invalid-app-credential': 'The security check failed. Please reload the page and try again.',
+    'auth/unauthorized-domain': 'Phone sign-in isn\'t switched on for this website yet. Please use your email for now.',
+    'auth/network-request-failed': 'No connection. Check your internet and try again.',
+    'auth/billing-not-enabled': 'Phone sign-in needs billing switched on in Firebase (Blaze plan). Please use your email for now.',
+    'auth/operation-not-allowed': 'Phone sign-in isn\'t switched on in Firebase yet. Please use your email for now.',
+    'auth/admin-restricted-operation': 'Phone sign-in isn\'t switched on in Firebase yet. Please use your email for now.',
+    'auth/invalid-api-key': 'Phone sign-in isn\'t set up correctly (API key). Please use your email for now.',
+    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'Phone sign-in isn\'t set up correctly (API key). Please use your email for now.',
+  }[e?.code] || 'We couldn\'t send the text message. Please try again, or use your email.') + ` [${e?.code || e?.message || e || 'unknown'}]`;
+
+  async function sendFirebase() {
+    try {
+      const f = await firebase();
+      if (!verifier) {
+        // A fresh element every time: reCAPTCHA refuses to render twice into the same one.
+        const box = document.createElement('div');
+        $('#recaptcha').replaceChildren(box);
+        verifier = new f.RecaptchaVerifier(f.auth, box, { size: 'invisible' });
+      }
+      const phone = toE164(identifier);
+      try {
+        confirmation = await f.signInWithPhoneNumber(f.auth, phone, verifier);
+      } catch (err) {
+        try { verifier.clear(); } catch {}
+        verifier = null;            // start clean on the next try
+        throw err;
+      }
+      $('#sent-msg').textContent = `We sent a 6-digit code by text message to ${maskPhone(phone)}. Use it within a few minutes.`;
+      message($('#dev-note'), '');
+      cooldown($('#resend'), 60);
+      return {};
+    } catch (e) {
+      console.warn('Firebase phone sign-in:', e?.code || e);
+      return { error: fbError(e) };
+    }
+  }
+  async function verifyFirebase(code) {
+    try {
+      const cred = await confirmation.confirm(code);
+      const idToken = await cred.user.getIdToken();
+      const res = await api('/api/auth/firebase', { idToken });
+      try { await fb.signOut(fb.auth); } catch {}   // our own session takes over from here
+      return res;
+    } catch (e) {
+      const expired = e?.code === 'auth/code-expired' || e?.code === 'auth/session-expired';
+      const wrong = e?.code === 'auth/invalid-verification-code';
+      return { ok: false, data: { error: expired ? 'That code has expired. Request a new one.' : wrong ? 'Incorrect code. Check the text message and try again.' : fbError(e), expired } };
+    }
+  }
+
+  async function send() {
+    if (useFirebase(identifier)) return sendFirebase();
+    const { ok, data } = await api('/api/auth/start', { identifier });
+    if (!ok) {
+      if (data.retryAfter) cooldown($('#resend'), data.retryAfter);
+      return { error: data.error || 'Something went wrong.', retry: Boolean(data.retryAfter) };
+    }
+    const how = { email: 'email', sms: 'text message', whatsapp: 'WhatsApp' }[data.via] || 'text message';
+    $('#sent-msg').textContent = `We sent a 6-digit code by ${how} to ${data.sentTo}. ${data.expiresMinutes ? `It expires in ${data.expiresMinutes} minutes.` : 'Use it within a few minutes.'}`;
+    devCodeNote($('#dev-note'), data.devCode);
+    cooldown($('#resend'), data.cooldown);
+    return {};
+  }
+
+  $('#s-id').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const value = $('#identifier').value.trim();
+    const field = $('[data-field="identifier"]');
+    const bad = !value
+      || (value.includes('@') ? !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value) : !/^(\+?234|0)[789]\d{9}$/.test(value.replace(/[\s\-()]/g, '')));
+    field.classList.toggle('invalid', bad);
+    $('.err', field).textContent = bad ? (value.includes('@') || !opts.sms ? 'Enter a valid email address.' : 'Enter a valid email or Nigerian phone number, e.g. 0803 123 4567.') : '';
+    if (bad) return $('#identifier').focus();
+
+    identifier = value; message($('#id-err'), '');
+    const btn = $('#send'); setLoading(btn, true);
+    const { error, retry } = await send();
+    setLoading(btn, false);
+    if (error && !retry) return message($('#id-err'), error);
+    message($('#code-err'), retry ? error : '');
+    showStep('s-code'); otp.clear();
+  });
+
+  const otp = createOtp($('#otp'), () => $('#s-code').requestSubmit());
+  $('#s-code').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = otp.value();
+    if (code.length !== 6) return message($('#code-err'), 'Enter all 6 digits.');
+    const btn = $('#verify'); if (btn.disabled) return;
+    setLoading(btn, true);
+    const { ok, data } = useFirebase(identifier) && confirmation ? await verifyFirebase(code) : await api('/api/auth/verify', { identifier, code });
+    setLoading(btn, false);
+    if (!ok) {
+      otp.shake(); otp.clear();
+      message($('#code-err'), data.error || 'Something went wrong.');
+      if (data.expired) { clearInterval($('#resend')._timer); $('#resend').disabled = false; $('#resend').textContent = 'Send a new code'; }
+      return;
+    }
+    location.href = data.isNew ? '/account?welcome=1' : '/account';
+  });
+
+  $('#resend').addEventListener('click', async () => {
+    $('#resend').disabled = true; message($('#code-err'), '');
+    const { error } = await send();
+    if (error) return message($('#code-err'), error);
+    message($('#code-err'), 'A new code is on its way.', 'ok'); otp.clear();
+  });
+
+  $('#back').addEventListener('click', () => { clearInterval($('#resend')._timer); showStep('s-id'); $('#identifier').focus(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+!.env.example
+backups*/
+public/**/*.br
+public/**/*.gz
+*.log
+.DS_Store
+docker-compose.override.yml

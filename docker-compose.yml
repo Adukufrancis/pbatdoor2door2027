@@ -1,0 +1,123 @@
+# PBAT DOOR TO DOOR — app + Postgres, plus Caddy (HTTPS) and nightly backups in production.
+#
+#   Local:      docker compose up --build              (db + app on http://localhost:3000)
+#   Production: COMPOSE_PROFILES=prod in .env, then scripts/deploy.sh
+#               (adds caddy on ports 80/443 and the backup service)
+#
+# Settings come from .env (see .env.example).
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pbat}
+      POSTGRES_USER: ${POSTGRES_USER:-pbat}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pbat-local-dev-only}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    command:
+      - postgres
+      - -c
+      - max_connections=50
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-128MB}
+      - -c
+      - log_min_duration_statement=1000
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No `ports:` — Postgres is reachable only by the other containers on this network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    shm_size: 128mb
+    logging: *logging
+
+  app:
+    build: .
+    image: pbat-app:${APP_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: "3000"
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-pbat}
+      PGUSER: ${POSTGRES_USER:-pbat}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-pbat-local-dev-only}
+      DATABASE_SSL: disable
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Published on the loopback interface only: Caddy (host network) reaches it here,
+    # the internet can't. (Docker-published ports bypass ufw, so never use 0.0.0.0 here.)
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    stop_grace_period: 15s
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: [prod]
+    restart: unless-stopped
+    # Host networking so Caddy sees visitors' real IPv4 *and* IPv6 addresses
+    # (with Docker's port publishing, IPv6 clients would all appear as the Docker gateway).
+    network_mode: host
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-pbatdoor2door2027.org}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+      PROXY_MODE: ${PROXY_MODE:-direct}
+      APP_PORT: ${APP_PORT:-3000}
+      CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
+    volumes:
+      - ./deploy/caddy:/etc/caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    logging: *logging
+
+  backup:
+    image: postgres:17-alpine
+    profiles: [prod]
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/scripts/backup-loop.sh"]
+    # Runs as the server's operator account (user1, normally uid 1000) so it owns the backup files.
+    user: "${BACKUP_UID:-1000}:${BACKUP_GID:-1000}"
+    environment:
+      PGHOST: db
+      PGDATABASE: ${POSTGRES_DB:-pbat}
+      PGUSER: ${POSTGRES_USER:-pbat}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-pbat-local-dev-only}
+      BACKUP_TIME_UTC: ${BACKUP_TIME_UTC:-01:30}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-8}
+    volumes:
+      - ./deploy/backup:/scripts:ro
+      - ${BACKUP_DIR:-./backups}:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

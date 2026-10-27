@@ -1,0 +1,26 @@
+# Test overlay used by scripts/test-stack.sh: the production stack, but with email/SMS going to a
+# local mock and Caddy using its internal CA for the test domain (no Let's Encrypt).
+services:
+  mock:
+    image: node:22-alpine
+    command: ["node", "/mock/mock-providers.js"]
+    volumes:
+      - ./deploy/test:/mock:ro
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  app:
+    environment:
+      BREVO_API_KEY: test-key
+      BREVO_API_URL: http://mock:8025/brevo
+      MAIL_FROM: "PBAT DOOR TO DOOR <no-reply@pbat.test>"
+      DAGESMS_API_KEY: test-key
+      DAGESMS_BASE_URL: http://mock:8025/dagesms
+      OTP_IP_LIMIT_PER_HOUR: "40"
+    depends_on:
+      mock:
+        condition: service_started
+
+  caddy:
+    environment:
+      CADDY_GLOBAL_OPTIONS: local_certs
