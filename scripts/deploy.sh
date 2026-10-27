@@ -3,13 +3,28 @@
 #   scripts/deploy.sh            # pull the current branch, rebuild, restart, health-check
 #   scripts/deploy.sh --no-pull  # rebuild and restart what's checked out
 # If the new version doesn't become healthy, the previous image is started again.
+# Exits non-zero on any failure (2 = app healthy but HTTPS through Caddy not answering).
+#
+# Also run by GitHub Actions as the SSH forced command for the CI deploy key (see README, section 6),
+# so it must never prompt: no TTY, no stdin, and the ssh client's command line is ignored.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$(readlink -f "$0")")/.."
+exec < /dev/null
 
 PULL=1
 [ "${1:-}" = "--no-pull" ] && PULL=0
 
 die() { echo "deploy: $*" >&2; exit 1; }
+
+# One deploy at a time (a manual run and a CI run could otherwise overlap).
+exec 9> "${TMPDIR:-/tmp}/pbatdoor2door-deploy.lock"
+flock -w 900 9 || die "another deploy is still running."
+
+# Fail instead of waiting for a password or host-key prompt that nobody can answer.
+export GIT_TERMINAL_PROMPT=0
+export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes}"
+[ -t 1 ] || export BUILDKIT_PROGRESS=plain
+echo "deploy: running in $PWD as $(id -un)"
 [ -f .env ] || die ".env is missing. Copy .env.example to .env and fill it in."
 set -a; . ./.env; set +a
 

@@ -1,0 +1,92 @@
+name: CI and deploy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  unit:
+    name: Unit tests and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: shellcheck
+        run: shellcheck -S warning scripts/*.sh deploy/backup/*.sh
+
+  stack:
+    name: Full stack tests (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: scripts/test-stack.sh
+        run: scripts/test-stack.sh
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker compose -p pbat-test --env-file deploy/test/test.env \
+            -f docker-compose.yml -f deploy/test/docker-compose.test.yml logs --tail 200 || true
+
+  deploy:
+    name: Deploy to production
+    needs: [unit, stack]
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://pbatdoor2door2027.org
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Run scripts/deploy.sh on the server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for v in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            [ -n "${!v}" ] || { echo "::error::Secret $v is not set in the production environment."; exit 1; }
+          done
+          dir="$(mktemp -d "$RUNNER_TEMP/ssh.XXXXXX")"
+          trap 'rm -rf "$dir"' EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$dir/key"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$dir/known_hosts"
+          chmod 600 "$dir/key" "$dir/known_hosts"
+          # The server's authorized_keys entry forces scripts/deploy.sh; the remote command is ignored.
+          ssh -T -n \
+            -i "$dir/key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$dir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
+            -o ConnectTimeout=20 -o ServerAliveInterval=30 -o ServerAliveCountMax=6 \
+            "$DEPLOY_USER@$DEPLOY_HOST" deploy
+
+      - name: Verify https://pbatdoor2door2027.org/healthz
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 10 https://pbatdoor2door2027.org/healthz; then echo; exit 0; fi
+            echo "attempt $i failed; retrying"
+            sleep 6
+          done
+          echo "::error::https://pbatdoor2door2027.org/healthz did not answer after the deploy."
+          exit 1

@@ -239,6 +239,47 @@ Changing only `.env`: `docker compose up -d` (recreates the containers whose set
 
 Keeping the server patched: security updates install automatically. For Docker and other packages, occasionally run `sudo apt update && sudo apt upgrade` and reboot when asked; all containers restart on their own (`restart: unless-stopped`). To pick up newer base images (Node, Postgres minor, Caddy), run `docker compose pull && scripts/deploy.sh --no-pull`.
 
+### Automatic deploys (GitHub Actions)
+
+`.github/workflows/ci-deploy.yml` runs on every pull request, every push to `main`, and on demand (Actions → **CI and deploy** → **Run workflow**):
+
+| Job | Runs on | What it does |
+|---|---|---|
+| **Unit tests and lint** | PRs, pushes, manual | `npm ci`, `npm test`, `shellcheck` on the shell scripts. |
+| **Full stack tests (Docker)** | PRs, pushes, manual | `scripts/test-stack.sh` on GitHub's `ubuntu-latest` runner (the whole production stack with mocks; see section 10). |
+| **Deploy to production** | pushes to `main` and manual runs on `main`, only after both test jobs pass | SSHes to the server, which runs `scripts/deploy.sh`; then checks `https://pbatdoor2door2027.org/healthz`. |
+
+The deploy job uses the GitHub **environment `production`** (add required reviewers there if you want a manual approval step) and a concurrency group, so deploys never overlap or get cancelled half-way; `scripts/deploy.sh` also takes a lock on the server. The job fails if `deploy.sh` exits non-zero (including after a rollback) or if `/healthz` doesn't answer. The server deploys whatever is at the tip of `origin/main` at that moment, which is normally the commit that was just tested.
+
+**One-time setup.** A dedicated SSH key that can do nothing on the server except run the deploy script:
+
+1. On your computer: `ssh-keygen -t ed25519 -N "" -C github-actions-deploy -f pbat_ci_deploy`
+2. On the server, as user1, append one line to `/home/user1/.ssh/authorized_keys` (the contents of `pbat_ci_deploy.pub` after the options):
+
+   ```
+   command="/opt/pbatdoor2door/scripts/deploy.sh",restrict ssh-ed25519 AAAA… github-actions-deploy
+   ```
+
+   `command=` makes sshd run the deploy script whatever command the client asks for; `restrict` turns off TTYs and port, agent and X11 forwarding. The script `cd`s to `/opt/pbatdoor2door` itself, never prompts (stdin is closed, git runs in batch mode), and exits non-zero on failure. Its `git pull` uses user1's deploy key from section 2b as usual.
+3. Get the server's host key line and **compare its fingerprint** with the one shown on the server (`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`):
+
+   ```bash
+   ssh-keyscan -t ed25519 172.237.115.143 > known_hosts.txt && ssh-keygen -lf known_hosts.txt
+   ```
+
+4. GitHub → repo **Settings → Environments → New environment** `production`, then add these **environment secrets**:
+
+   | Secret | Value |
+   |---|---|
+   | `DEPLOY_HOST` | `172.237.115.143` |
+   | `DEPLOY_USER` | `user1` |
+   | `DEPLOY_SSH_KEY` | contents of the private key file `pbat_ci_deploy` |
+   | `DEPLOY_KNOWN_HOSTS` | contents of `known_hosts.txt` from step 3 |
+
+   Then delete the local private key. Test with `ssh -i pbat_ci_deploy user1@172.237.115.143` before deleting it if you like (it runs a deploy).
+
+Until these secrets exist, the deploy job fails with "Secret … is not set"; the test jobs are unaffected. To stop automatic deploys, remove the `authorized_keys` line (or the secrets).
+
 ---
 
 ## 7. Backups and restore
@@ -334,7 +375,9 @@ docker compose down                     # stop everything (data is kept in volum
 ## 10. Tests
 
 - `npm test`: unit tests (input validation, the polling-unit lookup compared with the original linear scan at hundreds of points, email provider request formats, CSP hashes).
-- `scripts/test-stack.sh`: builds and starts the **whole production stack** locally (Postgres, app with `NODE_ENV=production`, Caddy with HTTPS on a test domain using Caddy's internal CA, backups), with a mock standing in for Brevo and DageSMS, then runs `test/e2e/stack.test.js` through Caddy: health/readiness, HTTP→HTTPS and www→apex redirects, pages and legacy redirects, security headers, pre-compressed geo data, email sign-in (cooldown, wrong code, single-use code, Secure/HttpOnly/SameSite cookie, no codes leaked), profile validation and save, second device, phone sign-in, account linking and merge, logout and logout-all, `/api/geo/near`, the per-IP limit including that a spoofed `X-Forwarded-For` is ignored. It then restarts the app and checks sessions and the rate limit survived, takes a backup, restores it with `scripts/restore.sh`, and checks again. It needs free ports 80, 443, 3000 and 8025, so run it on a development machine, **not on the production server**.
+- `scripts/test-stack.sh`: builds and starts the **whole production stack** locally (Postgres, app with `NODE_ENV=production`, Caddy with HTTPS on a test domain using Caddy's internal CA, backups), with a mock standing in for Brevo and DageSMS, then runs `test/e2e/stack.test.js` through Caddy: health/readiness, HTTP→HTTPS and www→apex redirects, pages and legacy redirects, security headers, pre-compressed geo data, email sign-in (cooldown, wrong code, single-use code, Secure/HttpOnly/SameSite cookie, no codes leaked), profile validation and save, second device, phone sign-in, account linking and merge, logout and logout-all, `/api/geo/near`, the per-IP limit including that a spoofed `X-Forwarded-For` is ignored. It then restarts the app and checks sessions and the rate limit survived, takes a backup, restores it with `scripts/restore.sh`, and checks again. It needs free ports 80, 443, 3000 and 8025, so run it on a development machine or in CI, **not on the production server**.
+
+Both run automatically in GitHub Actions on every pull request and push (section 6, "Automatic deploys").
 
 ---
 
