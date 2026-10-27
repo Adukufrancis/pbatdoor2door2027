@@ -4,7 +4,7 @@
 //   empty links still show the icon, marked "coming soon".
 export const SOCIAL_LINKS = {
   facebook: '',    // e.g. 'https://facebook.com/pbatdoortodoor'
-  x: 'https://x.com/PBAT2027D2D',           // e.g. 'https://x.com/pbatdoortodoor'
+  x: 'https://x.com/PBAT2027D2D',
   instagram: 'https://www.instagram.com/pbatdoortodoor2027/',
   tiktok: 'https://www.tiktok.com/@pbatdoortodoor2027',
   youtube: 'https://www.youtube.com/@PbatDoorToDoor2027',
