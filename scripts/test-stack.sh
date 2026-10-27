@@ -9,6 +9,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export COMPOSE_PROJECT_NAME=pbat-test
+# The backup container writes into ./backups-test (mode 700), so it must run as this user.
+BACKUP_UID="$(id -u)"; BACKUP_GID="$(id -g)"; export BACKUP_UID BACKUP_GID
 COMPOSE=(docker compose --env-file deploy/test/test.env -f docker-compose.yml -f deploy/test/docker-compose.test.yml)
 STATE=/tmp/pbat-e2e-state.json
 NODE_RUN=(docker run --rm --network host -v "$PWD:/w:ro" -v /tmp:/tmp -w /w
