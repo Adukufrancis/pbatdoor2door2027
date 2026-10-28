@@ -4,7 +4,7 @@
 export const SITE = {
   name: 'PBAT Door to Door Movement',              // the organisation's official name
   address: '65 Parakou Street, Abuja, FCT, Nigeria', // physical address for the "Published by" line
-  email: 'info@pbatdoor2door2027.org',              // contact email (ideally on your own domain)
+  email: 'one@pbatdoor2door2027.org',              // contact email (ideally on your own domain)
   privacyEmail: 'privacy@pbatdoor2door2027.org',    // where people send data requests (can be the same as email)
   phone: '',                                        // optional public phone / volunteer hotline, e.g. '0800 000 0000'
   domain: 'https://pbatdoor2door2027.org',
