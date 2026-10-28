@@ -9,7 +9,7 @@ export function startMotion() {
   scrollSpy();
   if (reduce) { document.querySelectorAll('.timeline li').forEach((li) => li.classList.add('lit')); document.querySelector('.timeline')?.style.setProperty('--fill', '100%'); document.querySelectorAll('.reveal').forEach((el) => el.classList.add('in')); return; }
   reveal();
-  typewriter();
+  rotateWords();
   countUp();
   ticker();
   heroParallax();
@@ -26,42 +26,33 @@ function progressBar() {
   addEventListener('scroll', update, { passive: true }); addEventListener('resize', update); update();
 }
 
-// Sections and cards fade/slide in as they enter the screen; siblings follow one after another.
+// Sections and cards fade in gently as they come near the screen. Content is never hidden for long:
+// anything on screen (or nearly) when the page opens shows at once, the rest starts fading in
+// before it scrolls into view, and a fast scroll catches up immediately.
 export function reveal(root = document) {
-  const items = [...root.querySelectorAll('.reveal:not(.in)')];
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach((e) => {
-      if (!e.isIntersecting) return;
-      const el = e.target, sibs = [...el.parentElement.children].filter((c) => c.classList.contains('reveal'));
-      el.style.transitionDelay = `${Math.min(sibs.indexOf(el), 6) * 80}ms`;
-      el.classList.add('in'); io.unobserve(el);
-    });
-  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
-  items.forEach((el) => io.observe(el));
-  // Safety net: anything already above the bottom of the screen (e.g. after jumping to a section) shows at once.
-  const sweep = () => root.querySelectorAll('.reveal:not(.in)').forEach((el) => {
-    if (el.getBoundingClientRect().top < innerHeight) { el.classList.add('in'); io.unobserve(el); }
+  const show = (el) => { el.classList.add('in'); io.unobserve(el); };
+  const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) show(e.target); }),
+    { rootMargin: '0px 0px 25% 0px', threshold: 0 });
+  root.querySelectorAll('.reveal:not(.in)').forEach((el) => {
+    if (el.getBoundingClientRect().top < innerHeight * 1.1) el.classList.add('in', 'now');   // already visible: no animation
+    else io.observe(el);
   });
-  let t; addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(sweep, 120); }, { passive: true });
-  addEventListener('hashchange', () => setTimeout(sweep, 600));
+  const sweep = () => root.querySelectorAll('.reveal:not(.in)').forEach((el) => {
+    if (el.getBoundingClientRect().top < innerHeight * 1.25) show(el);
+  });
+  addEventListener('scroll', sweep, { passive: true });
+  addEventListener('hashchange', () => setTimeout(sweep, 50));
 }
 
-// The highlighted end of the headline types, pauses, deletes and types the next phrase.
-function typewriter() {
+// The headline is plain text; only the last words gently swap between phrases.
+function rotateWords() {
   const el = document.querySelector('[data-type-words]'); if (!el) return;
   const words = el.dataset.typeWords.split('|');
-  el.textContent = ''; el.classList.add('typing');
-  let w = 0, i = 0, deleting = false;
-  const tick = () => {
-    const word = words[w];
-    i += deleting ? -1 : 1;
-    el.textContent = word.slice(0, i);
-    let wait = deleting ? 45 : 85;
-    if (!deleting && i === word.length) { deleting = true; wait = 2200; }
-    else if (deleting && i === 0) { deleting = false; w = (w + 1) % words.length; wait = 350; }
-    setTimeout(tick, wait);
-  };
-  setTimeout(tick, 500);
+  let w = 0;
+  setInterval(() => {
+    el.classList.add('swap');
+    setTimeout(() => { w = (w + 1) % words.length; el.textContent = words[w]; el.classList.remove('swap'); }, 220);
+  }, 3200);
 }
 
 // Stat numbers count up from zero the first time they appear.

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contact us · PBAT DOOR TO DOOR</title>
+<meta name="description" content="Contact the PBAT Door to Door Movement and find our official accounts.">
+<meta name="theme-color" content="#06492a">
+<link rel="canonical" href="https://pbatdoor2door2027.org/contact">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" id="site-nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="PBAT Door to Door home">
+      <img class="brand-logo" src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#movement">Movement</a>
+      <a href="/#about">The President</a>
+      <a href="/#works">His works</a>
+      <a href="/#gallery">Gallery</a>
+    </div>
+    <div class="nav-auth" id="nav-auth">
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn small" href="/join">Join now</a>
+    </div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-drawer" id="nav-drawer" hidden></div>
+</nav>
+
+<main class="legal" id="main">
+  <div class="wrap legal-wrap">
+    <p class="eyebrow">Contact</p>
+    <h1>Contact us</h1>
+    <p class="lead-sm">Questions about volunteering, your account or something on this site? Get in touch.</p>
+    <div class="contact-cards">
+      <div class="contact-card"><h3>Email</h3><a data-site-mail="email"></a><p>We aim to reply within 2 working days.</p></div>
+      <div class="contact-card" data-site-if="phone"><h3>Phone / hotline</h3><p data-site="phone"></p></div>
+      <div class="contact-card"><h3>Office</h3><p><span data-site="name"></span><br><span data-site="address"></span></p></div>
+      <div class="contact-card"><h3>Your data</h3><a data-site-mail="privacyEmail"></a><p>To see, correct or delete your details. See our <a href="/privacy">Privacy policy</a>.</p></div>
+    </div>
+
+    <h2 id="official">Official accounts</h2>
+    <p>These are our only official accounts. If you see a page using our name and logo that isn't listed here, please report it to us.</p>
+    <div class="social-grid" data-social="cards"></div>
+    <script type="module">import { renderSocial } from '/social.js'; renderSocial(document.querySelector('.legal'));</script>
+  </div>
+</main>
+
+<footer class="site" id="site-footer"></footer>
+
+<script type="module">
+  import { mountNav, mountFooter } from '/app.js';
+  import { fillSite } from '/site-info.js';
+  fillSite();
+  mountNav();
+  mountFooter();
+</script>
+</body>
+</html>

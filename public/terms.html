@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of use · PBAT DOOR TO DOOR</title>
+<meta name="description" content="Terms for using the PBAT Door to Door website and volunteering with the movement.">
+<meta name="theme-color" content="#06492a">
+<link rel="canonical" href="https://pbatdoor2door2027.org/terms">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" id="site-nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="PBAT Door to Door home">
+      <img class="brand-logo" src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#movement">Movement</a>
+      <a href="/#about">The President</a>
+      <a href="/#works">His works</a>
+      <a href="/#gallery">Gallery</a>
+    </div>
+    <div class="nav-auth" id="nav-auth">
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn small" href="/join">Join now</a>
+    </div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-drawer" id="nav-drawer" hidden></div>
+</nav>
+
+<main class="legal" id="main">
+  <div class="wrap legal-wrap">
+    <p class="eyebrow">Terms</p>
+    <h1>Terms of use</h1>
+    <p class="legal-meta">Last updated <span data-site="policyDate"></span></p>
+    <p class="legal-draft">Draft for review by the movement's legal adviser before launch.</p>
+
+    <p>These terms apply when you use this website or join <b data-site="name"></b> as a volunteer. By signing up you agree to them and to our <a href="/privacy">Privacy policy</a>.</p>
+
+    <h2>Who can join</h2>
+    <p>You must be 18 or older and give true information about yourself. One account per person. Keep access to your email or phone secure, because that is how you log in.</p>
+
+    <h2>How volunteers should act</h2>
+    <ul>
+      <li>Be respectful and peaceful at every door. Never use threats, insults, bribes or pressure.</li>
+      <li>Share only accurate information. Use the sourced facts on this site, and don't make up figures or promises.</li>
+      <li>Respect people's privacy: only collect someone's details with their clear permission, and never share them outside the movement.</li>
+      <li>Follow the law, including the Electoral Act and INEC's rules and timetable.</li>
+      <li>Don't present yourself as an official of the government, INEC or any security agency.</li>
+    </ul>
+    <p>We may suspend or remove accounts that break these rules.</p>
+
+    <h2>Content on this site</h2>
+    <p>We work to keep facts accurate and link each one to its source, but figures can change. If you spot an error, please <a href="/contact">tell us</a>. You may share our content to support the movement; please don't change it in a misleading way. The logo and name belong to the movement.</p>
+
+    <h2>Official accounts</h2>
+    <p>Our only official social media accounts are listed on the <a href="/contact#official">Contact page</a>. Be careful of fake pages asking for money or personal details.</p>
+
+    <h2>Availability and liability</h2>
+    <p>We provide the site as it is and may change or pause it at any time. As far as the law allows, we are not responsible for losses caused by using the site or by links to other websites.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about these terms: <a data-site-mail="email"></a>.</p>
+  </div>
+</main>
+
+<footer class="site" id="site-footer"></footer>
+
+<script type="module">
+  import { mountNav, mountFooter } from '/app.js';
+  import { fillSite } from '/site-info.js';
+  fillSite();
+  mountNav();
+  mountFooter();
+</script>
+</body>
+</html>

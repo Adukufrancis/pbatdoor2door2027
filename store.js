@@ -1,8 +1,10 @@
-// Data layer (Postgres). Schema lives in migrations/*.sql.
+// Data layer. Uses Postgres when DATABASE_URL is set (production, e.g. Neon on Render),
+// otherwise a local SQLite file (development). Both expose the same async API.
 //
 // Members sign in with an email OR a phone number. A contact is "verified" once the
 // person has entered a code sent to it; only verified contacts can be used to log in,
 // and each verified email/phone belongs to at most one member.
+import path from 'node:path';
 
 // Profile questions asked after the first login (all stored as text).
 export const PROFILE_FIELDS = [
@@ -10,8 +12,53 @@ export const PROFILE_FIELDS = [
   'polling_unit', 'address', 'occupation', 'interests',
 ];
 
+const SCHEMA = (big, idDef) => `
+  CREATE TABLE IF NOT EXISTS members (
+    id              ${idDef},
+    email           TEXT,
+    email_verified  INTEGER NOT NULL DEFAULT 0,
+    phone           TEXT,
+    phone_verified  INTEGER NOT NULL DEFAULT 0,
+    full_name       TEXT NOT NULL DEFAULT '',
+    gender          TEXT NOT NULL DEFAULT '',
+    date_of_birth   TEXT NOT NULL DEFAULT '',
+    state           TEXT NOT NULL DEFAULT '',
+    lga             TEXT NOT NULL DEFAULT '',
+    ward            TEXT NOT NULL DEFAULT '',
+    polling_unit    TEXT NOT NULL DEFAULT '',
+    address         TEXT NOT NULL DEFAULT '',
+    occupation      TEXT NOT NULL DEFAULT '',
+    interests       TEXT NOT NULL DEFAULT '',
+    consent_at      ${big},
+    created_at      ${big} NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS members_email_verified_uq ON members(email) WHERE email_verified = 1;
+  CREATE UNIQUE INDEX IF NOT EXISTS members_phone_verified_uq ON members(phone) WHERE phone_verified = 1;
+  CREATE INDEX IF NOT EXISTS members_email_idx ON members(email);
+  CREATE INDEX IF NOT EXISTS members_phone_idx ON members(phone);
+
+  CREATE TABLE IF NOT EXISTS otp_codes (
+    identifier  TEXT PRIMARY KEY,
+    channel     TEXT NOT NULL,
+    code_hash   TEXT NOT NULL,
+    expires_at  ${big} NOT NULL,
+    attempts    INTEGER NOT NULL DEFAULT 0,
+    sent_at     ${big} NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS member_sessions (
+    token_hash  TEXT PRIMARY KEY,
+    member_id   INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    created_at  ${big} NOT NULL,
+    last_seen   ${big} NOT NULL,
+    user_agent  TEXT
+  );
+  CREATE INDEX IF NOT EXISTS member_sessions_member_idx ON member_sessions(member_id);
+`;
+
 const MEMBER_COLS = `id, email, email_verified, phone, phone_verified, ${PROFILE_FIELDS.join(', ')}, consent_at, created_at`;
 
+// Every query is written once with $1, $2… placeholders.
 const QUERIES = {
   getCode: 'SELECT * FROM otp_codes WHERE identifier = $1',
   upsertCode: `INSERT INTO otp_codes (identifier, channel, code_hash, expires_at, attempts, sent_at)
@@ -25,12 +72,13 @@ const QUERIES = {
   memberByVerifiedEmail: `SELECT ${MEMBER_COLS} FROM members WHERE email = $1 AND email_verified = 1`,
   memberByVerifiedPhone: `SELECT ${MEMBER_COLS} FROM members WHERE phone = $1 AND phone_verified = 1`,
   memberById: `SELECT ${MEMBER_COLS} FROM members WHERE id = $1`,
-  memberByIdForUpdate: `SELECT ${MEMBER_COLS} FROM members WHERE id = $1 FOR UPDATE`,
   // When someone proves they own a contact, remove it from any account that only typed it in.
   releaseUnverifiedEmail: 'UPDATE members SET email = NULL WHERE email = $1 AND email_verified = 0',
   releaseUnverifiedPhone: 'UPDATE members SET phone = NULL WHERE phone = $1 AND phone_verified = 0',
-  insertByEmail: `INSERT INTO members (email, email_verified, created_at) VALUES ($1, 1, $2) RETURNING ${MEMBER_COLS}`,
-  insertByPhone: `INSERT INTO members (phone, phone_verified, created_at) VALUES ($1, 1, $2) RETURNING ${MEMBER_COLS}`,
+  insertByEmail: 'INSERT INTO members (email, email_verified, created_at) VALUES ($1, 1, $2)',
+  insertByPhone: 'INSERT INTO members (phone, phone_verified, created_at) VALUES ($1, 1, $2)',
+  verifyEmail: 'UPDATE members SET email_verified = 1 WHERE id = $1 AND email = $2',
+  verifyPhone: 'UPDATE members SET phone_verified = 1 WHERE id = $1 AND phone = $2',
   setEmail: 'UPDATE members SET email = $2, email_verified = 0 WHERE id = $1 AND email_verified = 0',
   setPhone: 'UPDATE members SET phone = $2, phone_verified = 0 WHERE id = $1 AND phone_verified = 0',
   linkEmail: 'UPDATE members SET email = $2, email_verified = 1 WHERE id = $1',
@@ -51,117 +99,116 @@ const QUERIES = {
                   WHERE member_id = $1 ORDER BY last_seen DESC`,
   deleteSession: 'DELETE FROM member_sessions WHERE token_hash = $1',
   deleteMemberSessions: 'DELETE FROM member_sessions WHERE member_id = $1',
-
-  // Serialises concurrent requests for the same bucket so the count can't be overshot.
-  lockBucket: 'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-  countHits: 'SELECT count(*)::int AS n FROM rate_limit_hits WHERE bucket = $1 AND hit_at > $2',
-  insertHit: 'INSERT INTO rate_limit_hits (bucket, hit_at) VALUES ($1, $2)',
-  purgeHits: 'DELETE FROM rate_limit_hits WHERE hit_at < $1',
+  // Consent given on the sign-up screen (timestamped). Unticking SMS later doesn't happen here.
+  recordConsent: `UPDATE members SET join_consent_at = COALESCE(join_consent_at, $2),
+                    sms_optin = CASE WHEN $3 = 1 THEN 1 ELSE sms_optin END,
+                    sms_consent_at = CASE WHEN $3 = 1 THEN COALESCE(sms_consent_at, $2) ELSE sms_consent_at END
+                  WHERE id = $1`,
 };
 
-// BIGINT comes back from pg as a string; turn numeric columns back into numbers.
+// Columns added after the first release (added to existing databases on start-up).
+const ADDED_COLUMNS = [
+  ['join_consent_at', 'BIGINT', 'INTEGER'],
+  ['sms_optin', 'INTEGER NOT NULL DEFAULT 0', 'INTEGER NOT NULL DEFAULT 0'],
+  ['sms_consent_at', 'BIGINT', 'INTEGER'],
+];
+
+// Postgres returns BIGINT as strings; turn numeric columns back into numbers.
 const NUMERIC = new Set(['id', 'member_id', 'created_at', 'expires_at', 'sent_at', 'last_seen', 'attempts',
   'consent_at', 'email_verified', 'phone_verified']);
 const fixRow = (r) => {
+  if (!r) return r;
   for (const k of Object.keys(r)) if (NUMERIC.has(k) && r[k] != null) r[k] = Number(r[k]);
   return r;
 };
 
-export function createStore(pool) {
-  const q = async (name, params = [], db = pool) => (await db.query(QUERIES[name], params)).rows.map(fixRow);
-  const one = async (name, params, db) => (await q(name, params, db))[0];
-  const byVerified = (type, value, db) =>
-    one(type === 'email' ? 'memberByVerifiedEmail' : 'memberByVerifiedPhone', [value], db);
+async function createPostgres(url) {
+  const { default: pg } = await import('pg');
+  const local = /localhost|127\.0\.0\.1/.test(url);
+  const pool = new pg.Pool({
+    connectionString: url,
+    ssl: local || /sslmode=disable/.test(url) ? false : { rejectUnauthorized: false },
+    max: 5,
+  });
+  await pool.query(SCHEMA('BIGINT', 'SERIAL PRIMARY KEY'));
+  for (const [col, pgType] of ADDED_COLUMNS) await pool.query(`ALTER TABLE members ADD COLUMN IF NOT EXISTS ${col} ${pgType}`);
+  const q = async (name, params = []) => (await pool.query(QUERIES[name], params)).rows.map(fixRow);
+  return { kind: 'postgres', q, close: () => pool.end() };
+}
 
-  async function tx(fn) {
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      const out = await fn(client);
-      await client.query('COMMIT');
-      return out;
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
+async function createSqlite(file) {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(file);
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  db.exec(SCHEMA('INTEGER', 'INTEGER PRIMARY KEY AUTOINCREMENT'));
+  for (const [col, , liteType] of ADDED_COLUMNS) { try { db.exec(`ALTER TABLE members ADD COLUMN ${col} ${liteType}`); } catch {} }
+  const stmts = {};
+  const q = async (name, params = []) => {
+    const sql = QUERIES[name].replace(/\$(\d+)/g, '?$1');
+    const stmt = (stmts[name] ??= db.prepare(sql));
+    return /^\s*SELECT/i.test(sql) ? stmt.all(...params).map((r) => ({ ...r })) : (stmt.run(...params), []);
+  };
+  return { kind: 'sqlite', q, close: () => db.close() };
+}
+
+export async function createStore() {
+  const raw = process.env.DATABASE_URL ? await createPostgres(process.env.DATABASE_URL)
+    : await createSqlite(process.env.DB_PATH || path.join(process.cwd(), 'data.db'));
+  const one = async (name, params) => (await raw.q(name, params))[0];
+  const byVerified = (type, value) => one(type === 'email' ? 'memberByVerifiedEmail' : 'memberByVerifiedPhone', [value]);
 
   return {
-    ping: () => pool.query('SELECT 1'),
+    kind: raw.kind,
+    close: raw.close,
 
     getCode: (id) => one('getCode', [id]),
-    upsertCode: (id, channel, hash, expiresAt, sentAt) => q('upsertCode', [id, channel, hash, expiresAt, sentAt]),
-    bumpAttempts: (id) => q('bumpAttempts', [id]),
-    deleteCode: (id) => q('deleteCode', [id]),
-    purgeCodes: (now) => q('purgeCodes', [now]),
+    upsertCode: (id, channel, hash, expiresAt, sentAt) => raw.q('upsertCode', [id, channel, hash, expiresAt, sentAt]),
+    bumpAttempts: (id) => raw.q('bumpAttempts', [id]),
+    deleteCode: (id) => raw.q('deleteCode', [id]),
+    purgeCodes: (now) => raw.q('purgeCodes', [now]),
 
     memberById: (id) => one('memberById', [id]),
-    memberByVerified: (type, value) => byVerified(type, value),
-
-    /**
-     * Sliding-window limiter: records a hit and returns true if `bucket` has had fewer than
-     * `limit` hits in the last `windowMs`; otherwise returns false without recording one.
-     */
-    hit: (bucket, limit, windowMs, now = Date.now()) => tx(async (c) => {
-      await c.query(QUERIES.lockBucket, [bucket]);
-      const { n } = await one('countHits', [bucket, now - windowMs], c);
-      if (n >= limit) return false;
-      await q('insertHit', [bucket, now], c);
-      return true;
-    }),
-    purgeHits: (before) => q('purgeHits', [before]),
+    memberByVerified: byVerified,
 
     /** The person proved they own this email/phone: return their member, creating one if new. */
     async signInWith(type, value, now) {
       const existing = await byVerified(type, value);
       if (existing) return { member: existing, isNew: false };
+      await raw.q(type === 'email' ? 'releaseUnverifiedEmail' : 'releaseUnverifiedPhone', [value]);
       try {
-        const member = await tx(async (c) => {
-          await q(type === 'email' ? 'releaseUnverifiedEmail' : 'releaseUnverifiedPhone', [value], c);
-          return one(type === 'email' ? 'insertByEmail' : 'insertByPhone', [value, now], c);
-        });
-        return { member, isNew: true };
+        await raw.q(type === 'email' ? 'insertByEmail' : 'insertByPhone', [value, now]);
       } catch (err) {
         // Two sign-ins racing for the same new contact: the other one won, use it.
-        if (err.code !== '23505') throw err;
         const winner = await byVerified(type, value);
         if (winner) return { member: winner, isNew: false };
         throw err;
       }
+      return { member: await byVerified(type, value), isNew: true };
     },
 
     /** Store a contact the member typed in (not verified yet). Returns false if someone else has it verified. */
     async setContact(memberId, type, value) {
-      if (value != null) {
-        const owner = await byVerified(type, value);
-        if (owner && owner.id !== memberId) return false;
-        if (owner && owner.id === memberId) return true;
-      }
-      await q(type === 'email' ? 'setEmail' : 'setPhone', [memberId, value]);
+      const owner = await byVerified(type, value);
+      if (owner && owner.id !== memberId) return false;
+      if (owner && owner.id === memberId) return true;
+      await raw.q(type === 'email' ? 'setEmail' : 'setPhone', [memberId, value]);
       return true;
     },
 
     /**
      * The member proved they own this email/phone. Attach it to their account; if another account
      * already signs in with it, merge the two (the older account is kept, sessions move with it).
-     * Runs in one transaction so a failure part-way can't lose either account.
      */
-    linkContact: (memberId, type, value) => tx(async (c) => {
-      const owner = await byVerified(type, value, c);
+    async linkContact(memberId, type, value) {
+      const owner = await byVerified(type, value);
       if (owner && owner.id === memberId) return { memberId, merged: false };
       if (!owner) {
-        await q(type === 'email' ? 'releaseUnverifiedEmail' : 'releaseUnverifiedPhone', [value], c);
-        await q(type === 'email' ? 'linkEmail' : 'linkPhone', [memberId, value], c);
+        await raw.q(type === 'email' ? 'releaseUnverifiedEmail' : 'releaseUnverifiedPhone', [value]);
+        await raw.q(type === 'email' ? 'linkEmail' : 'linkPhone', [memberId, value]);
         return { memberId, merged: false };
       }
-      // Lock both rows in id order so two merges of the same pair can't deadlock.
-      const [lo, hi] = [owner.id, memberId].sort((a, b) => a - b);
-      const first = await one('memberByIdForUpdate', [lo], c);
-      const second = await one('memberByIdForUpdate', [hi], c);
-      if (!first || !second) return { conflict: true };
-      const [keep, drop] = [first, second];          // the older (lower id) account is kept
+      const me = await one('memberById', [memberId]);
+      const [keep, drop] = owner.id < me.id ? [owner, me] : [me, owner];
       const pick = (t) => {
         const a = keep[`${t}_verified`] ? keep[t] : null, b = drop[`${t}_verified`] ? drop[t] : null;
         if (a && b && a !== b) return null;                      // two different verified contacts: can't merge
@@ -170,22 +217,24 @@ export function createStore(pool) {
       const email = pick('email'), phone = pick('phone');
       if (!email || !phone) return { conflict: true };
       const consents = [keep.consent_at, drop.consent_at].filter((x) => x != null);
-      await q('moveSessions', [drop.id, keep.id], c);
-      await q('deleteMember', [drop.id], c);                    // frees its verified contacts for the keeper
-      await q('mergeInto', [keep.id, email[0], email[1], phone[0], phone[1],
+      await raw.q('moveSessions', [drop.id, keep.id]);
+      await raw.q('deleteMember', [drop.id]);                  // frees its verified contacts for the keeper
+      await raw.q('mergeInto', [keep.id, email[0], email[1], phone[0], phone[1],
         ...PROFILE_FIELDS.map((f) => keep[f] || drop[f] || ''),
-        consents.length ? Math.min(...consents) : null, Math.min(keep.created_at, drop.created_at)], c);
+        consents.length ? Math.min(...consents) : null, Math.min(keep.created_at, drop.created_at)]);
       return { memberId: keep.id, merged: true };
-    }),
+    },
+
+    recordConsent: (id, now, sms) => raw.q('recordConsent', [id, now, sms ? 1 : 0]),
 
     updateProfile: (id, profile, now) =>
-      q('updateProfile', [id, ...PROFILE_FIELDS.map((f) => profile[f] ?? ''), now]),
+      raw.q('updateProfile', [id, ...PROFILE_FIELDS.map((f) => profile[f] ?? ''), now]),
 
-    insertSession: (hash, memberId, now, ua) => q('insertSession', [hash, memberId, now, now, ua]),
+    insertSession: (hash, memberId, now, ua) => raw.q('insertSession', [hash, memberId, now, now, ua]),
     getSession: (hash) => one('getSession', [hash]),
-    touchSession: (hash, now) => q('touchSession', [now, hash]),
-    listSessions: (memberId) => q('listSessions', [memberId]),
-    deleteSession: (hash) => q('deleteSession', [hash]),
-    deleteMemberSessions: (memberId) => q('deleteMemberSessions', [memberId]),
+    touchSession: (hash, now) => raw.q('touchSession', [now, hash]),
+    listSessions: (memberId) => raw.q('listSessions', [memberId]),
+    deleteSession: (hash) => raw.q('deleteSession', [hash]),
+    deleteMemberSessions: (memberId) => raw.q('deleteMemberSessions', [memberId]),
   };
 }

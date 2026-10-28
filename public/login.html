@@ -29,7 +29,7 @@
     </div>
     <div class="nav-auth" id="nav-auth">
       <a class="nav-link" href="/login">Log in</a>
-      <a class="btn small" href="/login">Join now</a>
+      <a class="btn small" href="/join">Join now</a>
     </div>
     <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
       <span></span><span></span><span></span>
@@ -56,8 +56,8 @@
 
     <!-- Step 1: email or phone -->
     <form class="card narrow step" id="s-id" novalidate>
-      <h1>Join or log in</h1>
-      <p class="sub">Enter your email or phone number. We'll send you a 6-digit code. New here? This creates your account.</p>
+      <h1 id="id-title">Join the movement</h1>
+      <p class="sub" id="id-sub">Enter your email or phone number. We'll send you a 6-digit code to confirm it's you.</p>
       <div class="field" data-field="identifier">
         <label for="identifier">Email or phone number</label>
         <input id="identifier" type="text" autocomplete="username" autocapitalize="off" spellcheck="false"
@@ -65,10 +65,19 @@
         <div class="err"></div>
       </div>
       <p class="id-hint" id="hint" hidden></p>
+      <div class="consents" data-field="consent">
+        <label class="check"><input type="checkbox" id="agree">
+          <span>I agree to join the PBAT Door to Door Movement and to the <a href="/privacy" target="_blank">Privacy Policy</a> and <a href="/terms" target="_blank">Terms</a>.</span></label>
+        <label class="check"><input type="checkbox" id="sms-optin">
+          <span>Send me updates by SMS and WhatsApp <em>(optional, you can stop anytime)</em>.</span></label>
+        <div class="err"></div>
+      </div>
+      <div id="turnstile" class="turnstile" hidden></div>
       <button class="btn block" id="send" type="submit" style="margin-top:16px"><span class="spinner"></span><span>Continue</span></button>
       <div class="msg err" id="id-err"></div>
       <div id="recaptcha"></div>
-      <p class="switch" style="font-size:13px">No password needed. You'll stay logged in on this device until you log out. <span style="opacity:.5">v4</span></p>
+      <p class="switch" style="font-size:13px">No password needed. You'll stay logged in on this device until you log out.</p>
+      <p class="switch" id="mode-switch"></p>
     </form>
 
     <!-- Step 2: code -->
@@ -84,16 +93,28 @@
         <button type="button" class="linkish" id="resend" disabled>Resend code</button>
       </div>
     </form>
+
+    <!-- Step 3 (only for someone new who came in through "Log in"): agree before the account is made -->
+    <form class="card narrow step" id="s-agree" novalidate>
+      <h1>Welcome! You're new here</h1>
+      <p class="sub">We don't have an account for <b id="new-who"></b> yet. Tick the box to join the movement.</p>
+      <div id="agree-slot"></div>
+      <button class="btn block" id="join" type="submit" style="margin-top:16px"><span class="spinner"></span><span>Join the movement</span></button>
+      <div class="msg err" id="agree-err"></div>
+      <div class="row"><button type="button" class="linkish" id="back2">← Use a different email or number</button></div>
+    </form>
   </div>
 </main>
 
+<footer class="site" id="site-footer"></footer>
+
 <script type="module">
-  import { $, api, setLoading, message, devCodeNote, showStep, createOtp, cooldown, mountNav } from '/app.js';
+  import { $, api, setLoading, message, devCodeNote, showStep, createOtp, cooldown, mountNav, mountFooter } from '/app.js';
 
   let identifier = '';
   const me = await api('/api/me');
   if (me.ok) location.replace('/account');
-  mountNav({ member: null, page: 'login' });
+  mountNav({ member: null, page: 'login' }); mountFooter();
 
   const { data: opts } = await api('/api/options');
   if (!opts.sms) {
@@ -102,7 +123,47 @@
     $('label[for="identifier"]').textContent = 'Email address';
     $('#identifier').placeholder = 'you@example.com';
   }
+  // /join shows the tick boxes straight away. /login doesn't: members already agreed when they joined.
+  const joining = /^\/(join|signup)/.test(location.pathname);
+  $('#id-title').textContent = joining ? 'Join the movement' : 'Log in';
+  $('#id-sub').textContent = joining
+    ? "Enter your email or phone number. We'll send you a 6-digit code to confirm it's you."
+    : "Enter the email or phone number you joined with. We'll send you a 6-digit code.";
+  $('#mode-switch').innerHTML = joining ? 'Already a member? <a href="/login">Log in</a>' : 'New here? <a href="/join">Join the movement</a>';
+  document.title = (joining ? 'Join' : 'Log in') + document.title.replace(/^[^·]*/, ' ');
+  if (!joining) $('#agree-slot').append($('[data-field="consent"]'));
   showStep('s-id'); $('#identifier').focus();
+
+  // ---- Consent (required) and SMS opt-in (optional), sent with every sign-in step ----
+  const consent = () => ({ consent: $('#agree').checked, sms: $('#sms-optin').checked });
+  const agreed = () => {
+    const cbox = $('[data-field="consent"]'), ok = $('#agree').checked;
+    cbox.classList.toggle('invalid', !ok);
+    $('.err', cbox).textContent = ok ? '' : 'Please tick the box to agree before continuing.';
+    if (!ok) $('#agree').focus();
+    return ok;
+  };
+  // Buttons look switched off until they can be used: Continue needs an email/phone typed in (and, on /join,
+  // the box ticked); "Join the movement" needs the box ticked. Tapping one anyway explains what's missing.
+  const syncButtons = () => {
+    const agreed = $('#agree').checked, typed = $('#identifier').value.trim() !== '';
+    $('#join').setAttribute('aria-disabled', String(!agreed));
+    $('#send').setAttribute('aria-disabled', String(!typed || (joining && !agreed)));
+  };
+  $('#agree').addEventListener('change', () => { $('[data-field="consent"]').classList.remove('invalid'); syncButtons(); });
+  $('#identifier').addEventListener('input', syncButtons);
+  syncButtons();
+
+  // ---- Optional Cloudflare Turnstile bot check (only when the site has keys set) ----
+  let tsWidget = null;
+  if (opts.turnstile) {
+    window.onTurnstileLoad = () => { $('#turnstile').hidden = false; tsWidget = window.turnstile.render('#turnstile', { sitekey: opts.turnstile, size: 'flexible' }); };
+    const s = document.createElement('script');
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit'; s.async = true;
+    document.head.append(s);
+  }
+  const tsToken = () => (tsWidget != null ? window.turnstile.getResponse(tsWidget) : undefined);
+  const tsReset = () => { if (tsWidget != null) window.turnstile.reset(tsWidget); };
 
   // ---- Phone codes through Google Firebase (when the server says so) ----
   const useFirebase = (id) => opts.phoneVia === 'firebase' && !id.includes('@');
@@ -163,7 +224,7 @@
     try {
       const cred = await confirmation.confirm(code);
       const idToken = await cred.user.getIdToken();
-      const res = await api('/api/auth/firebase', { idToken });
+      const res = await api('/api/auth/firebase', { idToken, ...consent() });
       try { await fb.signOut(fb.auth); } catch {}   // our own session takes over from here
       return res;
     } catch (e) {
@@ -175,7 +236,8 @@
 
   async function send() {
     if (useFirebase(identifier)) return sendFirebase();
-    const { ok, data } = await api('/api/auth/start', { identifier });
+    const { ok, data } = await api('/api/auth/start', { identifier, ...consent(), turnstile: tsToken() });
+    tsReset();
     if (!ok) {
       if (data.retryAfter) cooldown($('#resend'), data.retryAfter);
       return { error: data.error || 'Something went wrong.', retry: Boolean(data.retryAfter) };
@@ -196,6 +258,7 @@
     field.classList.toggle('invalid', bad);
     $('.err', field).textContent = bad ? (value.includes('@') || !opts.sms ? 'Enter a valid email address.' : 'Enter a valid email or Nigerian phone number, e.g. 0803 123 4567.') : '';
     if (bad) return $('#identifier').focus();
+    if (joining && !agreed()) return;
 
     identifier = value; message($('#id-err'), '');
     const btn = $('#send'); setLoading(btn, true);
@@ -213,7 +276,7 @@
     if (code.length !== 6) return message($('#code-err'), 'Enter all 6 digits.');
     const btn = $('#verify'); if (btn.disabled) return;
     setLoading(btn, true);
-    const { ok, data } = useFirebase(identifier) && confirmation ? await verifyFirebase(code) : await api('/api/auth/verify', { identifier, code });
+    const { ok, data } = useFirebase(identifier) && confirmation ? await verifyFirebase(code) : await api('/api/auth/verify', { identifier, code, ...consent() });
     setLoading(btn, false);
     if (!ok) {
       otp.shake(); otp.clear();
@@ -221,8 +284,25 @@
       if (data.expired) { clearInterval($('#resend')._timer); $('#resend').disabled = false; $('#resend').textContent = 'Send a new code'; }
       return;
     }
+    if (data.needsConsent) {               // new person on the Log in page: ask them to agree first
+      pending = data.pending;
+      $('#new-who').textContent = identifier; message($('#agree-err'), '');
+      return showStep('s-agree');
+    }
     location.href = data.isNew ? '/account?welcome=1' : '/account';
   });
+
+  let pending = null;
+  $('#s-agree').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!agreed()) return;
+    const btn = $('#join'); setLoading(btn, true);
+    const { ok, data } = await api('/api/auth/join', { pending, ...consent() });
+    setLoading(btn, false);
+    if (!ok) return message($('#agree-err'), data.error || 'Something went wrong.');
+    location.href = data.isNew ? '/account?welcome=1' : '/account';
+  });
+  $('#back2').addEventListener('click', () => { showStep('s-id'); $('#identifier').focus(); });
 
   $('#resend').addEventListener('click', async () => {
     $('#resend').disabled = true; message($('#code-err'), '');

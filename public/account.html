@@ -29,7 +29,7 @@
     </div>
     <div class="nav-auth" id="nav-auth">
       <a class="nav-link" href="/login">Log in</a>
-      <a class="btn small" href="/login">Join now</a>
+      <a class="btn small" href="/join">Join now</a>
     </div>
     <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
       <span></span><span></span><span></span>
@@ -131,15 +131,17 @@
   </div>
 </main>
 
+<footer class="site" id="site-footer"></footer>
+
 <script type="module">
-  import { $, api, setLoading, message, renderProfileFields, readProfileFields, checkProfile, showFieldErrors, prettyPhone, mountNav, toast, logout, createOtp, cooldown, devCodeNote } from '/app.js';
+  import { $, api, setLoading, message, renderProfileFields, readProfileFields, checkProfile, showFieldErrors, prettyPhone, mountNav, toast, logout, createOtp, cooldown, devCodeNote, mountFooter } from '/app.js';
   import { firebasePhone } from '/phone.js';
 
   const { ok, data } = await api('/api/me');
   if (!ok) { location.replace('/login'); await new Promise(() => {}); }
   const { data: opts } = await api('/api/options');
   let user = data.member;
-  mountNav({ member: user });
+  mountNav({ member: user }); mountFooter();
 
   const LABELS = [
     ['full_name', 'Full name'], ['email', 'Email'], ['phone', 'Phone'], ['gender', 'Gender'],

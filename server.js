@@ -2,48 +2,34 @@ import 'dotenv/config';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
-import { pinoHttp } from 'pino-http';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { logger } from './logger.js';
-import { createPool, waitForDatabase, migrate } from './db.js';
 import { createStore, PROFILE_FIELDS } from './store.js';
 import { createMailer } from './mailer.js';
 import { createSms } from './sms.js';
-import { loadGeoIndex, nearest } from './geo.js';
-import { securityHeaders } from './security.js';
-import { staticFiles } from './static.js';
 import { validateProfile, parseIdentifier, normalizePhone, isEmail, STATES, GENDERS, INTERESTS } from './validate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC_DIR = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT || 3000);
-const HOST = process.env.HOST || '0.0.0.0';
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 // ---- Tunables ---------------------------------------------------------------
 const CODE_TTL_MS = 10 * 60 * 1000;          // a code is valid for 10 minutes
 const CODE_MAX_ATTEMPTS = 5;                 // wrong guesses before the code is burned
 const RESEND_COOLDOWN_MS = 60 * 1000;        // one new code per email/phone per minute
-// Codes one IP address can request per hour (protects SMS credit). Stored in Postgres.
-const IP_SEND_LIMIT = Number(process.env.OTP_IP_LIMIT_PER_HOUR || 10);
-const IP_WINDOW_MS = 60 * 60 * 1000;
+const IP_SEND_LIMIT = 10;                    // codes one IP address can request per hour (protects SMS credit)
 const COOKIE_NAME = 'sid';
 // Browsers cap cookie lifetime at ~400 days, so the cookie is refreshed on visits.
 // The session itself never expires: only logging out ends it.
 const COOKIE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
-// Number of reverse proxies in front of the app (Caddy = 1). req.ip comes from X-Forwarded-For.
-const TRUST_PROXY = /^\d+$/.test(process.env.TRUST_PROXY || '1') ? Number(process.env.TRUST_PROXY || 1) : process.env.TRUST_PROXY;
 
-const pool = createPool();
-await waitForDatabase(pool);
-if (process.env.MIGRATE_ON_START !== 'false') await migrate(pool);
-const store = createStore(pool);
+const store = await createStore();
 const mailer = createMailer();
 const sms = createSms();
-// Phone sign-in works in development (codes go to the log) and in production once an SMS provider is set.
+// Phone sign-in works in development (codes go to the console) and in production once an SMS provider is set.
 // Google Firebase phone sign-in: Google sends the code (no Sender ID / CAC). The browser does the
 // code step with Firebase, then hands us a signed ID token proving the number; we verify it here.
 const FIREBASE = process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID ? {
@@ -55,12 +41,50 @@ const FIREBASE = process.env.FIREBASE_API_KEY && process.env.FIREBASE_PROJECT_ID
 const firebaseKeys = FIREBASE && createRemoteJWKSet(new URL(process.env.FIREBASE_JWKS_URL
   || 'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
 const SMS_ENABLED = Boolean(FIREBASE || sms.provider) || !IS_PROD;
+// Optional Cloudflare Turnstile (bot check) on code requests: set both keys to switch it on.
+const TURNSTILE = process.env.TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY
+  ? { siteKey: process.env.TURNSTILE_SITE_KEY.trim(), secret: process.env.TURNSTILE_SECRET_KEY.trim() } : null;
+async function turnstileOk(token, ip) {
+  if (!TURNSTILE) return true;
+  try {
+    const r = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ secret: TURNSTILE.secret, response: String(token || ''), remoteip: ip || '' }),
+    });
+    return Boolean((await r.json()).success);
+  } catch (err) { console.error('Turnstile check failed:', err.message); return false; }
+}
+const CONSENT_ERROR = { error: 'Please tick the box to agree to the Privacy Policy and Terms.', field: 'consent' };
 
+// When someone new comes in through "Log in" (no tick box there), we confirm their code first, then
+// ask them to agree before creating the account. This short-lived signed note remembers which
+// email/phone they just proved is theirs, so they don't need a second code.
+const PENDING_KEY = crypto.randomBytes(32);
+const PENDING_MS = 15 * 60 * 1000;
+const signPending = (p) => crypto.createHmac('sha256', PENDING_KEY).update(p).digest('base64url');
+function pendingToken(type, value) {
+  const p = `${type}|${value}|${Date.now() + PENDING_MS}`;
+  return `${Buffer.from(p).toString('base64url')}.${signPending(p)}`;
+}
+function readPending(token) {
+  const [b, sig] = String(token || '').split('.');
+  if (!b || !sig) return null;
+  const p = Buffer.from(b, 'base64url').toString();
+  if (!safeEqual(sig, signPending(p))) return null;
+  const [type, value, exp] = p.split('|');
+  if (!['email', 'phone'].includes(type) || !(Number(exp) > Date.now())) return null;
+  return { type, value };
+}
+
+if (IS_PROD && store.kind !== 'postgres') {
+  console.warn('WARNING: running in production without DATABASE_URL. On hosts with a temporary disk ' +
+    '(like Render free), every restart will sign everyone out. Set DATABASE_URL to a Postgres database.');
+}
 if (IS_PROD && !mailer.provider) {
-  logger.warn('no email provider configured (BREVO_API_KEY, ZEPTOMAIL_TOKEN, RESEND_API_KEY, GMAIL_SCRIPT_URL or SMTP_HOST)');
+  console.warn('WARNING: no email provider configured (BREVO_API_KEY, GMAIL_SCRIPT_URL, RESEND_API_KEY or SMTP_HOST).');
 }
 if (IS_PROD && !sms.provider && !FIREBASE) {
-  logger.info('no SMS provider or Firebase configured: phone sign-in is off, email still works');
+  console.warn('NOTE: no SMS provider configured (TERMII_API_KEY or TWILIO_*). Phone sign-in is off; email still works.');
 }
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -82,40 +106,32 @@ const publicMember = (m) => {
   return out;
 };
 
+// Very small in-memory limiter: N code requests per IP per hour.
+const ipHits = new Map();
+function ipAllowed(ip) {
+  const now = Date.now();
+  const hits = (ipHits.get(ip) || []).filter((t) => now - t < 60 * 60 * 1000);
+  if (hits.length >= IP_SEND_LIMIT) { ipHits.set(ip, hits); return false; }
+  hits.push(now); ipHits.set(ip, hits);
+  return true;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, hits] of ipHits) if (!hits.some((t) => now - t < 60 * 60 * 1000)) ipHits.delete(ip);
+}, 10 * 60 * 1000).unref();
+
 // ---- App --------------------------------------------------------------------
 const app = express();
-app.set('trust proxy', TRUST_PROXY);
+app.set('trust proxy', 1);                   // Render (and most hosts) sit behind a proxy
 app.disable('x-powered-by');
-
-app.get('/healthz', (req, res) => res.json({ ok: true }));
-app.get('/readyz', async (req, res) => {
-  try {
-    await store.ping();
-    res.json({ ok: true, db: 'up' });
-  } catch (err) {
-    logger.error({ err: err.message }, 'readiness check failed');
-    res.status(503).json({ ok: false, db: 'down' });
-  }
-});
-
-app.use(pinoHttp({
-  logger,
-  // API calls only; Caddy keeps the full access log. Query strings are dropped (they hold GPS positions).
-  autoLogging: { ignore: (req) => !req.url.startsWith('/api/') },
-  customProps: (req) => ({ ip: req.ip }),
-  serializers: {
-    req: (req) => ({ method: req.method, path: req.url.split('?')[0] }),
-    res: (res) => ({ status: res.statusCode }),
-  },
-  customLogLevel: (req, res, err) => (err || res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info'),
-}));
-app.use(securityHeaders({ publicDir: PUBLIC_DIR, isProd: IS_PROD, firebase: FIREBASE }));
 app.use(compression());
 app.use(express.json({ limit: '20kb' }));
 app.use(cookieParser());
 
 // Wrap async route handlers so errors reach the error handler.
 const h = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 // Basic CSRF defence: state-changing API calls must be JSON (forms can't send that
 // cross-site without a CORS preflight) and the session cookie is SameSite=Lax.
@@ -138,8 +154,7 @@ function setSessionCookie(res, token) {
 }
 
 // Loads the member from the session cookie (if any) and keeps the cookie fresh.
-// Static files don't need it, so it only runs for the API.
-app.use('/api', h(async (req, res, next) => {
+app.use(h(async (req, res, next) => {
   const token = req.cookies[COOKIE_NAME];
   if (!token) return next();
   const s = await store.getSession(sha256(token));
@@ -163,6 +178,7 @@ app.get('/api/options', (req, res) =>
   res.json({
     states: STATES, genders: GENDERS, interests: INTERESTS, sms: SMS_ENABLED,
     phoneVia: FIREBASE && !sms.provider ? 'firebase' : 'server',
+    turnstile: TURNSTILE ? TURNSTILE.siteKey : null,
     firebase: FIREBASE ? { apiKey: FIREBASE.apiKey, authDomain: FIREBASE.authDomain, projectId: FIREBASE.projectId, sdk: FIREBASE.sdk } : null,
   }));
 
@@ -175,8 +191,7 @@ async function sendCode(req, key, id) {
     const wait = Math.ceil((RESEND_COOLDOWN_MS - (now - existing.sent_at)) / 1000);
     return { status: 429, body: { error: `Please wait ${wait}s before requesting another code.`, retryAfter: wait } };
   }
-  if (!(await store.hit(`otp-ip:${req.ip}`, IP_SEND_LIMIT, IP_WINDOW_MS, now))) {
-    req.log.warn({ ip: req.ip }, 'per-IP code limit reached');
+  if (!ipAllowed(req.ip)) {
     return { status: 429, body: { error: 'Too many codes requested from this connection. Try again in an hour.' } };
   }
   const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
@@ -191,7 +206,7 @@ async function sendCode(req, key, id) {
       else await sms.send(id.value, code);
     }
   } catch (err) {
-    req.log.error({ err: err.message, channel: id.type }, 'code send failed');
+    console.error(`${id.type === 'email' ? 'Email' : 'SMS'} send failed:`, err.message);
     await store.deleteCode(key);
     return { status: 502, body: { error: id.type === 'email'
       ? "We couldn't send the email. Check the address and try again shortly."
@@ -209,7 +224,7 @@ async function sendCode(req, key, id) {
 }
 
 /** Returns null when the code is right (and burns it), otherwise { status, body } to send back. */
-async function checkCode(req, key, id, code) {
+async function checkCode(key, id, code) {
   const row = await store.getCode(key);
   if (!row || row.expires_at < Date.now()) {
     if (row) await store.deleteCode(key);
@@ -223,7 +238,7 @@ async function checkCode(req, key, id, code) {
   if (row.code_hash.startsWith('ext:')) {
     try { result = await sms.check(id.value, row.code_hash.slice(4), code); }
     catch (err) {
-      req.log.error({ err: err.message }, 'SMS verify failed');
+      console.error('SMS verify failed:', err.message);
       return { status: 502, body: { error: "We couldn't check the code right now. Please try again in a moment." } };
     }
     if (result === 'expired') {
@@ -246,7 +261,7 @@ async function checkCode(req, key, id, code) {
 }
 
 /** Google-signed Firebase token -> verified Nigerian phone number, or { status, body } on failure. */
-async function phoneFromFirebase(req, idToken) {
+async function phoneFromFirebase(idToken) {
   if (!FIREBASE) return { fail: { status: 404, body: { error: 'Phone sign-in is not set up.' } } };
   let payload;
   try {
@@ -254,7 +269,7 @@ async function phoneFromFirebase(req, idToken) {
       issuer: `https://securetoken.google.com/${FIREBASE.projectId}`, audience: FIREBASE.projectId,
     }));
   } catch (err) {
-    req.log.warn({ err: err.code || err.message }, 'Firebase token rejected');
+    console.error('Firebase token rejected:', err.code || err.message);
     return { fail: { status: 401, body: { error: "We couldn't confirm your phone number. Please try again." } } };
   }
   const phone = normalizePhone(payload.phone_number);
@@ -272,6 +287,21 @@ async function startSession(req, res, member, isNew) {
   res.json({ member: publicMember(member), isNew, needsProfile: !member.consent_at });
 }
 
+/**
+ * Code confirmed: log in. Members who already have an account don't need to tick anything again.
+ * Someone new must agree first, so if they haven't (they came through "Log in"), ask them.
+ */
+async function finishSignIn(req, res, type, value) {
+  const agreed = req.body.consent === true;
+  if (!agreed && !(await store.memberByVerified(type, value))) {
+    return res.json({ needsConsent: true, pending: pendingToken(type, value) });
+  }
+  const now = Date.now();
+  const { member, isNew } = await store.signInWith(type, value, now);
+  if (agreed) await store.recordConsent(member.id, now, req.body.sms === true);
+  await startSession(req, res, member, isNew);
+}
+
 // Step 1 (sign up AND log in): email or phone -> code
 app.post('/api/auth/start', h(async (req, res) => {
   const id = parseIdentifier(req.body.identifier);
@@ -280,6 +310,9 @@ app.post('/api/auth/start', h(async (req, res) => {
   }
   if (id.type === 'phone' && !SMS_ENABLED) {
     return res.status(503).json({ error: "Sign-in by phone isn't available yet. Please use your email address.", code: 'sms_off' });
+  }
+  if (!(await turnstileOk(req.body.turnstile, req.ip))) {
+    return res.status(400).json({ error: 'Please complete the security check and try again.', code: 'turnstile' });
   }
   const { status, body } = await sendCode(req, id.value, id);
   res.status(status).json(body);
@@ -292,18 +325,24 @@ app.post('/api/auth/verify', h(async (req, res) => {
   if (!id || code.length !== 6) {
     return res.status(400).json({ error: 'Enter the 6-digit code we sent you.' });
   }
-  const fail = await checkCode(req, id.value, id, code);
+  const fail = await checkCode(id.value, id, code);
   if (fail) return res.status(fail.status).json(fail.body);
-  const { member, isNew } = await store.signInWith(id.type, id.value, Date.now());
-  await startSession(req, res, member, isNew);
+  await finishSignIn(req, res, id.type, id.value);
 }));
 
 // Phone sign-in finished in the browser with Firebase: check Google's signed token, then log in.
 app.post('/api/auth/firebase', h(async (req, res) => {
-  const { phone, fail } = await phoneFromFirebase(req, req.body.idToken);
+  const { phone, fail } = await phoneFromFirebase(req.body.idToken);
   if (fail) return res.status(fail.status).json(fail.body);
-  const { member, isNew } = await store.signInWith('phone', phone, Date.now());
-  await startSession(req, res, member, isNew);
+  await finishSignIn(req, res, 'phone', phone);
+}));
+
+// A new person who came in through "Log in" has proved their email/phone and now ticked the box.
+app.post('/api/auth/join', h(async (req, res) => {
+  const p = readPending(req.body.pending);
+  if (!p) return res.status(400).json({ error: 'That took too long. Please start again.', restart: true });
+  if (req.body.consent !== true) return res.status(400).json(CONSENT_ERROR);
+  await finishSignIn(req, res, p.type, p.value);
 }));
 
 // Who am I?
@@ -389,7 +428,7 @@ app.post('/api/me/link/verify', h(async (req, res) => {
   const id = parseIdentifier(req.body.identifier);
   const code = String(req.body.code || '').replace(/\D/g, '');
   if (!id || code.length !== 6) return res.status(400).json({ error: 'Enter the 6-digit code we sent you.' });
-  const fail = await checkCode(req, linkKey(m, id), id, code);
+  const fail = await checkCode(linkKey(m, id), id, code);
   if (fail) return res.status(fail.status).json(fail.body);
   await finishLink(res, m, id.type, id.value);
 }));
@@ -398,7 +437,7 @@ app.post('/api/me/link/firebase', h(async (req, res) => {
   const m = req.member;
   if (!m) return res.status(401).json({ error: 'Please log in.' });
   if (m.phone_verified) return res.status(400).json({ error: 'Your account already has a verified phone number.' });
-  const { phone, fail } = await phoneFromFirebase(req, req.body.idToken);
+  const { phone, fail } = await phoneFromFirebase(req.body.idToken);
   if (fail) return res.status(fail.status).json(fail.body);
   await finishLink(res, m, 'phone', phone);
 }));
@@ -418,12 +457,22 @@ app.post('/api/auth/logout-all', h(async (req, res) => {
 }));
 
 // ---- Polling units near a location --------------------------------------------
-let geo = { size: 0, cells: new Map() };
+// public/geo/<state>.json holds INEC's state > LGA > ward > polling unit lists, with GPS where known.
+const GEO_DIR = path.join(__dirname, 'public', 'geo');
+const near = { lat: [], lng: [], ref: [] };
 try {
-  geo = loadGeoIndex(path.join(PUBLIC_DIR, 'geo'));
-  logger.info({ units: geo.size }, 'loaded polling-unit locations');
+  const index = JSON.parse(fs.readFileSync(path.join(GEO_DIR, 'index.json'), 'utf8'));
+  for (const [state, slug] of Object.entries(index)) {
+    const data = JSON.parse(fs.readFileSync(path.join(GEO_DIR, `${slug}.json`), 'utf8'));
+    for (const L of data.lgas) for (const W of L.w) for (const P of W.p) {
+      if (P.length < 4) continue;
+      near.lat.push(P[2]); near.lng.push(P[3]); near.ref.push([state, L.n, W.n, P[0], P[1]]);
+    }
+  }
+  near.lat = Float64Array.from(near.lat); near.lng = Float64Array.from(near.lng);
+  console.log(`Loaded ${near.ref.length.toLocaleString()} polling-unit locations`);
 } catch (err) {
-  logger.warn({ err: err.message }, 'polling-unit data not loaded');
+  console.warn('Polling-unit data not loaded:', err.message);
 }
 
 app.get('/api/geo/near', (req, res) => {
@@ -431,62 +480,38 @@ app.get('/api/geo/near', (req, res) => {
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return res.status(400).json({ error: 'Bad location.' });
   }
-  res.set('Cache-Control', 'no-store').json({ results: geo.size ? nearest(geo, lat, lng) : [] });
+  const k = Math.cos((lat * Math.PI) / 180);
+  const best = [];                                   // keep the 6 closest
+  for (let i = 0; i < near.lat.length; i++) {
+    const dy = near.lat[i] - lat, dx = (near.lng[i] - lng) * k, d = dy * dy + dx * dx;
+    if (best.length < 6 || d < best[best.length - 1][0]) {
+      best.push([d, i]); best.sort((a, b) => a[0] - b[0]); if (best.length > 6) best.pop();
+    }
+  }
+  const results = best.map(([d, i]) => {
+    const [state, lga, ward, name, code] = near.ref[i];
+    return { state, lga, ward, name, code, metres: Math.round(Math.sqrt(d) * 111320) };
+  }).filter((r) => r.metres < 25000);
+  res.set('Cache-Control', 'no-store').json({ results });
 });
 
-// Unknown API routes get JSON, not the static 404 page.
-app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
-
 // One page handles both joining and logging in.
-app.get(['/join', '/signup'], (req, res) => res.redirect(302, '/login'));
+// /join is the one sign-up address used on every button; it shows the same screen as /login.
+app.get(['/join', '/signup'], (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
 app.get('/welcome', (req, res) => res.redirect(302, '/account'));
-app.use(staticFiles(PUBLIC_DIR));
+app.use('/geo', express.static(GEO_DIR, { maxAge: '7d' }));
+// Photos and icons: let browsers keep them for a day instead of downloading them on every visit.
+app.use('/images', express.static(path.join(__dirname, 'public', 'images'), { maxAge: '1d' }));
+app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'] }));
 
 app.use((err, req, res, next) => {
-  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON.' });
-  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request too large.' });
-  (req.log || logger).error({ err }, 'unhandled error');
-  if (res.headersSent) return next(err);
+  console.error(err);
   res.status(500).json({ error: 'Something went wrong on our side. Please try again.' });
 });
 
-// Housekeeping: clear expired codes and old rate-limit entries every 15 minutes.
-const housekeeping = setInterval(() => {
-  const now = Date.now();
-  store.purgeCodes(now).catch((err) => logger.warn({ err: err.message }, 'purging codes failed'));
-  store.purgeHits(now - IP_WINDOW_MS).catch((err) => logger.warn({ err: err.message }, 'purging rate limits failed'));
-}, 15 * 60 * 1000);
-housekeeping.unref();
+// Housekeeping: clear expired codes every 15 minutes.
+setInterval(() => store.purgeCodes(Date.now()).catch(() => {}), 15 * 60 * 1000).unref();
 
-const server = app.listen(PORT, HOST, () => {
-  logger.info({
-    port: PORT, db: 'postgres', email: mailer.provider || 'log (dev)',
-    sms: sms.provider || (FIREBASE ? 'firebase' : IS_PROD ? 'off' : 'log (dev)'),
-    env: IS_PROD ? 'production' : 'development',
-  }, 'PBAT DOOR TO DOOR is running');
+app.listen(PORT, () => {
+  console.log(`Running at http://localhost:${PORT}  (db: ${store.kind}, email: ${mailer.provider || 'console (dev)'}, sms: ${sms.provider || (FIREBASE ? 'firebase' : IS_PROD ? 'off' : 'console (dev)')})`);
 });
-// Keep idle connections from Caddy open longer than Caddy does, so it never reuses a socket
-// Node has just closed (which would surface as a sporadic 502).
-server.keepAliveTimeout = 65_000;
-server.headersTimeout = 66_000;
-server.requestTimeout = 30_000;
-
-// Graceful shutdown: stop accepting connections, let in-flight requests finish, close the pool.
-let shuttingDown = false;
-async function shutdown(signal) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  logger.info({ signal }, 'shutting down');
-  clearInterval(housekeeping);
-  const force = setTimeout(() => { logger.error('forced exit after timeout'); process.exit(1); }, 10_000);
-  force.unref();
-  server.close(async () => {
-    await pool.end().catch(() => {});
-    logger.info('shutdown complete');
-    process.exit(0);
-  });
-  server.closeIdleConnections();
-}
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('unhandledRejection', (err) => logger.error({ err }, 'unhandled promise rejection'));

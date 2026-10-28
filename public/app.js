@@ -97,8 +97,8 @@ export async function mountNav({ member, page } = {}) {
     }
   } else {
     const onLogin = page === 'login';
-    auth.innerHTML = onLogin ? '' : `<a class="nav-link" href="/login">Log in</a><a class="btn small" href="/login">Join now</a>`;
-    drawer.innerHTML = `${links}${onLogin ? '' : '<a href="/login" class="btn block">Join or log in</a>'}`;
+    auth.innerHTML = onLogin ? '' : `<a class="nav-link" href="/login">Log in</a><a class="btn small" href="/join">Join now</a>`;
+    drawer.innerHTML = `${links}${onLogin ? '' : '<a href="/join" class="btn block">Join the movement</a><a href="/login" class="btn ghost block">Log in</a>'}`;
   }
   $$('[data-logout]', nav).forEach((b) => b.addEventListener('click', () => logout()));
 
@@ -511,7 +511,13 @@ function setupPlaces(container, v) {
   btn.addEventListener('click', () => {
     if (!navigator.geolocation) { status.textContent = "Your browser can't share your location."; return; }
     btn.disabled = true; status.textContent = 'Finding your location…'; list.innerHTML = '';
-    navigator.geolocation.getCurrentPosition(async (pos) => {
+    // Try precise GPS first; indoors or on laptops that can be slow or fail, so fall back to the
+    // quicker approximate location (WiFi / mobile network) before giving up.
+    const getPos = (opts) => new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, opts));
+    getPos({ enableHighAccuracy: true, timeout: 10000, maximumAge: 120000 })
+      .catch((err) => (err.code === 1 ? Promise.reject(err)
+        : (status.textContent = 'Still looking… using your approximate location', getPos({ enableHighAccuracy: false, timeout: 20000, maximumAge: 600000 }))))
+      .then(async (pos) => {
       status.textContent = 'Looking up polling units…';
       const { ok, data } = await api(`/api/geo/near?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`);
       btn.disabled = false;
@@ -534,9 +540,48 @@ function setupPlaces(container, v) {
         });
         list.append(b);
       }
-    }, (err) => {
+    }).catch((err) => {
       btn.disabled = false;
-      status.textContent = err.code === 1 ? 'Location permission was declined. Choose from the lists below.' : "Couldn't get your location. Choose from the lists below.";
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+      const ios = /iPhone|iPad/.test(navigator.userAgent), mac = /Macintosh/.test(navigator.userAgent) && !ios;
+      const how = ios ? 'On iPhone: Settings → Privacy & Security → Location Services → turn it on, then Safari Websites → "While Using the App".'
+        : mac ? 'On Mac: System Settings → Privacy & Security → Location Services → turn on for your browser (Safari or Chrome).'
+        : 'Turn on Location (GPS) in your phone settings and allow this site to use your location.';
+      status.textContent = err?.code === 1
+        ? `Location permission was declined. To use this, allow location for this website (tap the "aA" or lock icon by the address). Or choose from the lists below.`
+        : `Couldn't get your location. ${how} Or choose from the lists below.`;
+    });
   });
+}
+
+// ---- Site footer (same on every page) -----------------------------------------------
+// Put <footer class="site" id="site-footer"></footer> on a page and call mountFooter().
+export async function mountFooter() {
+  const box = document.getElementById('site-footer'); if (!box) return;
+  const [{ SITE, fillSite }, { renderSocial }] = await Promise.all([import('/site-info.js'), import('/social.js')]);
+  box.innerHTML = `
+    <div class="wrap foot-grid">
+      <div class="foot-col foot-about">
+        <a class="foot-brand" href="/"><img src="/images/icon-192.png" alt="PBAT Door to Door" width="36" height="36"><b>PBAT DOOR TO DOOR</b></a>
+        <p>A nationwide volunteer movement taking President Bola Ahmed Tinubu's record to every ward and polling unit.</p>
+        <div class="foot-social" data-social="icons"></div>
+      </div>
+      <nav class="foot-col" aria-label="Explore">
+        <h4>Explore</h4>
+        <a href="/">Home</a><a href="/#movement">The movement</a><a href="/#about">The President</a><a href="/#works">His works</a><a href="/#gallery">Gallery</a><a href="/join">Join the movement</a>
+      </nav>
+      <nav class="foot-col" aria-label="About this site">
+        <h4>About this site</h4>
+        <a href="/privacy">Privacy policy</a><a href="/terms">Terms of use</a><a href="/contact">Contact us</a><a href="/contact#official">Official accounts</a>
+      </nav>
+      <div class="foot-col">
+        <h4>Contact</h4>
+        <a data-site-mail="email"></a>
+        <span data-site-if="phone"><span data-site="phone"></span></span>
+      </div>
+    </div>
+    <div class="wrap foot-legal">
+      <span>© ${new Date().getFullYear()} <span data-site="name"></span>. Published by the <span data-site="name"></span>, <span data-site="address"></span>.</span>
+    </div>`;
+  fillSite(box);
+  renderSocial(box);
 }
