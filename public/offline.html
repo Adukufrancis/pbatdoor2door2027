@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>You're offline · PBAT DOOR TO DOOR</title>
+<meta name="theme-color" content="#06492a">
+<meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body class="offline-page">
+<main class="offline" id="main">
+  <div class="offline-head">
+    <img src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+    <div>
+      <p class="eyebrow">No connection</p>
+      <h1>You're offline</h1>
+      <p class="lead-sm">This page isn't saved on your phone yet. Pages you've opened before still work. Here are the key points for the doorstep.</p>
+      <div class="offline-actions">
+        <button class="btn" type="button" id="retry">Try again</button>
+        <a class="btn ghost" href="/">Home</a>
+        <a class="btn ghost" href="/#works">His works</a>
+      </div>
+    </div>
+  </div>
+
+  <h2>Five things to tell every household</h2>
+  <ol class="talking-points">
+    <li><b>Students can now study on a loan.</b> Through NELFUND, ₦242.4 billion has reached 1,388,592 students in 288 institutions (to April 2026).</li>
+    <li><b>Workers earn more.</b> The national minimum wage went from ₦30,000 to ₦70,000 in July 2024, and is now reviewed every three years.</li>
+    <li><b>Fairer taxes.</b> Four new tax laws, in force from January 2026, give relief to low-income earners, families and small businesses.</li>
+    <li><b>Roads that link the country.</b> The Lagos–Calabar Coastal Highway (750 km, 9 states) and 81 km of the Abuja–Kaduna–Zaria–Kano road are open.</li>
+    <li><b>The economy is growing.</b> GDP grew 4.43% in Q2 2026, and ₦5.41 trillion is going into security in the 2026 budget.</li>
+  </ol>
+  <p class="fine">Sources for each figure are on the <a href="/#works">His works</a> section when you're back online.</p>
+
+  <div class="offline-help" data-site-if="phone">
+    <h2>Need help?</h2>
+    <p>Volunteer hotline: <b data-site="phone"></b></p>
+  </div>
+</main>
+<script type="module">
+  import { fillSite } from '/site-info.js';
+  fillSite();
+  const go = () => location.reload();
+  document.getElementById('retry').addEventListener('click', go);
+  window.addEventListener('online', go);   // reload by itself when the signal comes back
+</script>
+</body>
+</html>

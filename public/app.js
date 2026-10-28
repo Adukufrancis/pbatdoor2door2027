@@ -49,16 +49,46 @@ const contactOf = (m) => (m.emailVerified ? m.email : prettyPhone(m.phone)) || m
 
 export async function logout(all = false) {
   await api(all ? '/api/auth/logout-all' : '/api/auth/logout', {});
+  rememberMember(null);
   location.href = '/';
 }
+
+// The header remembers (on this device) who is logged in, so the right buttons show instantly on every page
+// instead of "Log in / Join now" flashing first. The server is still asked each time, and the header is corrected
+// if anything changed (e.g. logged out on another device).
+const ME_KEY = 'pbat-me';
+export function cachedMember() {
+  try { return JSON.parse(localStorage.getItem(ME_KEY)); } catch { return null; }
+}
+function rememberMember(m) {
+  try {
+    if (m) localStorage.setItem(ME_KEY, JSON.stringify({ full_name: m.full_name || '', email: m.email || '', phone: m.phone || '',
+      role: m.role || 'volunteer', profileComplete: Boolean(m.profileComplete) }));
+    else localStorage.removeItem(ME_KEY);
+  } catch {}
+}
+const sameMember = (a, b) => JSON.stringify(a && [a.full_name, a.email, a.phone, a.role, Boolean(a.profileComplete)])
+  === JSON.stringify(b && [b.full_name, b.email, b.phone, b.role, Boolean(b.profileComplete)]);
 
 /** Fill the header for this visitor. Pass the member if the page already loaded it. */
 export async function mountNav({ member, page } = {}) {
   if (member === undefined) {
-    const { ok, data } = await api('/api/me');
-    member = ok ? data.member : null;
+    const cached = cachedMember();
+    if (cached && !$('#site-nav')?._shown) renderNav(cached, page);       // instant, from this device
+    const { ok, status, data } = await api('/api/me');
+    member = ok ? data.member : status === 0 ? cached : null;          // offline: trust what we remembered
+    if (ok || status !== 0) rememberMember(member);
+    if (cached && sameMember(cached, member) && $('#site-nav')?._shown) return member;   // already right
+  } else {
+    rememberMember(member);
   }
+  return renderNav(member, page);
+}
+
+function renderNav(member, page) {
   const nav = $('#site-nav'); if (!nav) return member;
+  nav._shown = true;
+  document.documentElement.classList.add('nav-ready');
   const auth = $('#nav-auth'), drawer = $('#nav-drawer'), toggle = $('#nav-toggle');
   // highlight "Home" on the home page (top of page only)
   const homeLink = $('.nav-links a[href="/"]', nav);
@@ -75,6 +105,8 @@ export async function mountNav({ member, page } = {}) {
         </button>
         <div class="user-pop" role="menu" hidden>
           <div class="user-head"><strong>${escHtml(member.full_name || 'New member')}</strong><span>${escHtml(contactOf(member))}</span></div>
+          <a role="menuitem" href="/volunteer">Volunteer area</a>
+          ${member.role && member.role !== 'volunteer' ? '<a role="menuitem" href="/coordinator">Coordinator view</a>' : ''}
           <a role="menuitem" href="/account">My account</a>
           <a role="menuitem" href="/account#edit">${member.profileComplete ? 'Edit my details' : 'Complete my profile'}</a>
           <hr>
@@ -84,6 +116,7 @@ export async function mountNav({ member, page } = {}) {
     drawer.innerHTML = `
       <div class="drawer-user"><span class="user-avatar">${escHtml(initials(member))}</span>
         <div><strong>${escHtml(member.full_name || 'New member')}</strong><span>${escHtml(contactOf(member))}</span></div></div>
+      <a href="/volunteer">Volunteer area</a>${member.role && member.role !== 'volunteer' ? '<a href="/coordinator">Coordinator view</a>' : ''}
       <a href="/account">My account</a>${links}
       <button type="button" class="drawer-logout" data-logout>Log out</button>`;
     const btn = $('.user-btn', auth), pop = $('.user-pop', auth);
@@ -585,3 +618,15 @@ export async function mountFooter() {
   fillSite(box);
   renderSocial(box);
 }
+
+// ---- Offline support ------------------------------------------------------------
+// The service worker (/sw.js) saves pages, styles and photos on the phone so the site keeps working
+// with poor or no signal. Registered on every page that loads this file.
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+  window.addEventListener('offline', () => toast("You're offline. Pages you've opened before still work."));
+  window.addEventListener('online', () => toast('Back online.'));
+}
+
+// Paint the header straight away from what this device remembers; each page then confirms it with the server.
+{ const m = cachedMember(); if (m && document.getElementById('nav-auth') && !location.pathname.startsWith('/login')) renderNav(m); }

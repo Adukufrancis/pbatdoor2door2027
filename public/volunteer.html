@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>try{if(localStorage.getItem("pbat-me")){var d=document.documentElement;d.classList.add("signed-in");setTimeout(function(){d.classList.add("nav-ready","page-ready")},3000)}}catch(e){}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Volunteer area · PBAT DOOR TO DOOR</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#06492a">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" id="site-nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="PBAT Door to Door home">
+      <img class="brand-logo" src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#movement">Movement</a>
+      <a href="/#about">The President</a>
+      <a href="/#works">His works</a>
+      <a href="/#gallery">Gallery</a>
+    </div>
+    <div class="nav-auth" id="nav-auth">
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn small" href="/join">Join now</a>
+    </div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-drawer" id="nav-drawer" hidden></div>
+</nav>
+
+<main class="vol" id="main">
+  <div class="wrap">
+    <div class="skeleton" id="boot" aria-label="Loading"><div class="sk" style="height:140px"></div><div class="sk" style="height:360px"></div></div>
+
+    <div id="content" hidden>
+      <header class="vol-head">
+        <div>
+          <p class="eyebrow">Volunteer area</p>
+          <h1 id="hello">Welcome</h1>
+          <p class="muted" id="where"></p>
+        </div>
+        <div class="vol-sync" id="sync" hidden></div>
+      </header>
+
+      <div class="vol-incomplete card-lite" id="incomplete" hidden>
+        <strong>Add your state, LGA, ward and polling unit</strong>
+        <p>We use them to show your ward, your coordinator and your local leaderboard.</p>
+        <a class="btn small" href="/account#edit">Complete my profile</a>
+      </div>
+
+      <nav class="vol-tabs" id="tabs" aria-label="Volunteer area">
+        <a href="#ward" data-tab="ward"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 1114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg><span>My Ward</span></a>
+        <a href="#log" data-tab="log"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg><span>Log visit</span></a>
+        <a href="#pledge" data-tab="pledge"><svg viewBox="0 0 24 24"><path d="M20 12v8H4v-8"/><path d="M12 3l3 5h-6z"/><path d="M8 12l3 3 5-6"/></svg><span>Pledges</span></a>
+        <a href="#board" data-tab="board"><svg viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z"/><path d="M17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3"/></svg><span>Leaderboard</span></a>
+        <a href="#toolkit" data-tab="toolkit"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 012-2h12v18H6a2 2 0 01-2-2z"/><path d="M8 7h6M8 11h6"/></svg><span>Toolkit</span></a>
+      </nav>
+
+      <!-- MY WARD -->
+      <section class="vol-panel" data-panel="ward">
+        <div class="vol-grid">
+          <div class="card-lite">
+            <h2>Your area</h2>
+            <dl class="area-list" id="area"></dl>
+          </div>
+          <div class="card-lite">
+            <h2>Volunteers near you</h2>
+            <div class="mini-stats" id="near"></div>
+          </div>
+          <div class="card-lite">
+            <h2>Your ward, last 30 days</h2>
+            <div class="mini-stats" id="wardstats"></div>
+          </div>
+          <div class="card-lite">
+            <h2>Your coordinator</h2>
+            <p id="coord"></p>
+          </div>
+        </div>
+        <div class="card-lite">
+          <div class="row-between"><h2>Your activity</h2><a class="btn small" href="#log">Log a visit</a></div>
+          <div class="mini-stats" id="mine"></div>
+          <h3 class="sub-h">Recent visits</h3>
+          <ul class="simple-list" id="visits"></ul>
+        </div>
+      </section>
+
+      <!-- LOG A VISIT -->
+      <section class="vol-panel" data-panel="log" hidden>
+        <form class="card-lite form-lite" id="visit-form" novalidate>
+          <h2>Log a visit</h2>
+          <p class="muted">Record the doors you knocked today. No signal? It's saved on your phone and sent when you're back online.</p>
+          <div class="two">
+            <label class="field" data-f="households"><span>Households visited</span>
+              <input name="households" type="number" inputmode="numeric" min="1" max="300" required placeholder="e.g. 12"><em class="err"></em></label>
+            <label class="field" data-f="people"><span>People you spoke with <small>(optional)</small></span>
+              <input name="people" type="number" inputmode="numeric" min="0" max="2000" placeholder="e.g. 20"><em class="err"></em></label>
+          </div>
+          <div class="two">
+            <label class="field" data-f="date"><span>Date</span><input name="date" type="date" required><em class="err"></em></label>
+            <label class="field" data-f="area"><span>Street or area <small>(optional)</small></span><input name="area" maxlength="120" placeholder="e.g. Dugwal street"><em class="err"></em></label>
+          </div>
+          <label class="field" data-f="notes"><span>Notes <small>(optional)</small></span>
+            <textarea name="notes" maxlength="500" rows="3" placeholder="Common questions, issues people raised, follow-ups"></textarea><em class="err"></em></label>
+          <button class="btn block" type="submit"><span class="spinner"></span><span>Save visit</span></button>
+          <p class="msg" id="visit-msg"></p>
+        </form>
+      </section>
+
+      <!-- PLEDGES -->
+      <section class="vol-panel" data-panel="pledge" hidden>
+        <form class="card-lite form-lite" id="pledge-form" novalidate>
+          <h2>Record a pledge</h2>
+          <p class="muted">When someone says they'll support the movement, and they're happy for us to keep their details, record it here.</p>
+          <div class="two">
+            <label class="field" data-f="name"><span>Their name</span><input name="name" maxlength="100" autocomplete="off" required><em class="err"></em></label>
+            <label class="field" data-f="phone"><span>Their phone <small>(optional)</small></span><input name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="0803 123 4567"><em class="err"></em></label>
+          </div>
+          <label class="field" data-f="pollingUnit"><span>Their polling unit <small>(optional)</small></span><input name="pollingUnit" maxlength="160" autocomplete="off"><em class="err"></em></label>
+          <label class="field" data-f="note"><span>Note <small>(optional)</small></span><input name="note" maxlength="300" autocomplete="off" placeholder="e.g. wants to volunteer too"><em class="err"></em></label>
+          <div class="consents" data-f="consent">
+            <label class="check"><input type="checkbox" name="consent">
+              <span>They agreed for the PBAT Door to Door Movement to keep these details and contact them. <a href="/privacy" target="_blank">Privacy policy</a></span></label>
+            <em class="err"></em>
+          </div>
+          <button class="btn block" type="submit" style="margin-top:14px"><span class="spinner"></span><span>Save pledge</span></button>
+          <p class="msg" id="pledge-msg"></p>
+        </form>
+        <div class="card-lite">
+          <h2>Your pledges <span class="count" id="pledge-count"></span></h2>
+          <ul class="simple-list" id="pledges"></ul>
+        </div>
+      </section>
+
+      <!-- LEADERBOARD -->
+      <section class="vol-panel" data-panel="board" hidden>
+        <div class="card-lite">
+          <div class="row-between">
+            <h2>Top volunteers <small class="muted">· households visited, last 30 days</small></h2>
+            <div class="seg" id="scope" role="tablist">
+              <button type="button" data-scope="ward">My ward</button><button type="button" data-scope="state" class="on">My state</button><button type="button" data-scope="national">Nigeria</button>
+            </div>
+          </div>
+          <ol class="board" id="board"></ol>
+        </div>
+        <div class="card-lite">
+          <h2>States</h2>
+          <ol class="board" id="states"></ol>
+        </div>
+      </section>
+
+      <!-- TOOLKIT -->
+      <section class="vol-panel" data-panel="toolkit" hidden>
+        <p class="legal-draft" id="tk-draft" hidden>Draft toolkit: waiting for approval by the movement. Use the facts; the wording may change.</p>
+        <div class="card-lite">
+          <h2>Five things to tell every household</h2>
+          <ol class="talking-points" id="tk-points"></ol>
+        </div>
+        <div class="card-lite">
+          <h2>Fact sheet</h2>
+          <div id="tk-facts"></div>
+        </div>
+        <div class="card-lite">
+          <h2>Hard questions, honest answers</h2>
+          <div id="tk-qa"></div>
+        </div>
+        <div class="vol-grid">
+          <div class="card-lite"><h2>How we behave at the door</h2><ul class="tick-list" id="tk-conduct"></ul></div>
+          <div class="card-lite"><h2>Help people vote</h2><ul class="simple-list" id="tk-voter"></ul></div>
+        </div>
+        <div class="card-lite"><h2>Flyers and WhatsApp images</h2><p class="muted">Approved flyers and images from the design team will appear here.</p></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer class="site" id="site-footer"></footer>
+
+<script type="module" src="/volunteer-page.js"></script>
+</body>
+</html>

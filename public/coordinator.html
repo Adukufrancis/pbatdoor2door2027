@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>try{if(localStorage.getItem("pbat-me")){var d=document.documentElement;d.classList.add("signed-in");setTimeout(function(){d.classList.add("nav-ready","page-ready")},3000)}}catch(e){}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coordinator view · PBAT DOOR TO DOOR</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#06492a">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32.png">
+<link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="nav" id="site-nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="PBAT Door to Door home">
+      <img class="brand-logo" src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+    </a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/#movement">Movement</a>
+      <a href="/#about">The President</a>
+      <a href="/#works">His works</a>
+      <a href="/#gallery">Gallery</a>
+    </div>
+    <div class="nav-auth" id="nav-auth">
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn small" href="/join">Join now</a>
+    </div>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="nav-drawer" id="nav-drawer" hidden></div>
+</nav>
+
+<main class="vol coord" id="main">
+  <div class="wrap">
+    <div class="skeleton" id="boot" aria-label="Loading"><div class="sk" style="height:140px"></div><div class="sk" style="height:360px"></div></div>
+    <div id="content" hidden>
+      <header class="vol-head">
+        <div>
+          <p class="eyebrow">Coordinator view</p>
+          <h1 id="title">Coordinator</h1>
+          <p class="muted" id="scope-note"></p>
+        </div>
+        <label class="coord-actions" id="state-pick" hidden><span class="muted">State</span><select id="state"></select></label>
+      </header>
+
+      <div class="card-lite"><div class="mini-stats" id="totals"></div></div>
+
+      <div class="card-lite" id="lga-card" hidden>
+        <h2>By LGA <small class="muted">· visits and households in the last 30 days</small></h2>
+        <div class="table-wrap"><table class="coord-table" id="lgas"></table></div>
+      </div>
+
+      <div class="card-lite">
+        <div class="row-between">
+          <h2>Volunteers <span class="count" id="vol-count"></span></h2>
+          <div class="coord-actions">
+            <input type="search" id="q" placeholder="Search name, LGA, ward…" aria-label="Search volunteers" class="search-lite">
+            <a class="btn small ghost" id="vol-csv" href="#" download>Download (Excel/CSV)</a>
+          </div>
+        </div>
+        <div class="table-wrap"><table class="coord-table" id="vols"></table></div>
+        <p class="fine" id="vol-more" hidden></p>
+      </div>
+
+      <div class="card-lite">
+        <div class="row-between">
+          <h2>Pledges <span class="count" id="pl-count"></span></h2>
+          <a class="btn small ghost" id="pl-csv" href="#" download>Download (Excel/CSV)</a>
+        </div>
+        <div class="table-wrap"><table class="coord-table" id="pls"></table></div>
+      </div>
+
+      <div class="card-lite" id="roles-card" hidden>
+        <h2>Coordinators</h2>
+        <p class="muted">Appoint a state coordinator: they must have joined the site first. They'll only see their own state.</p>
+        <form class="form-lite" id="role-form" novalidate>
+          <div class="two">
+            <label class="field" data-f="identifier"><span>Their email or phone (the one they log in with)</span><input name="identifier" autocomplete="off" required><em class="err"></em></label>
+            <label class="field" data-f="state"><span>Role</span><select name="pick" id="role-pick"></select><em class="err"></em></label>
+          </div>
+          <button class="btn" type="submit"><span class="spinner"></span><span>Save</span></button>
+          <p class="msg" id="role-msg"></p>
+        </form>
+        <div class="table-wrap"><table class="coord-table" id="roles"></table></div>
+      </div>
+
+      <p class="fine">These lists contain personal details. Use them only to organise the movement, don't share them outside it, and delete downloads you no longer need.</p>
+    </div>
+  </div>
+</main>
+
+<footer class="site" id="site-footer"></footer>
+<script type="module" src="/coordinator-page.js"></script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>try{if(localStorage.getItem("pbat-me")){var d=document.documentElement;d.classList.add("signed-in");setTimeout(function(){d.classList.add("nav-ready","page-ready")},3000)}}catch(e){}</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PBAT DOOR TO DOOR</title>
 <meta name="description" content="Join the PBAT DOOR TO DOOR volunteer network and learn about the work of President Bola Ahmed Tinubu's administration.">
@@ -102,7 +103,7 @@
 
     <div class="convener reveal">
       <figure class="convener-photo ph" data-initials="T">
-        <img alt="High Chief Government Oweizide Ekpemupolo (Tompolo)" data-sources="/images/tompolo.jpg">
+        <img alt="High Chief Government Oweizide Ekpemupolo (Tompolo)" data-sources="/images/tompolo.jpg?v=2">
       </figure>
       <div class="convener-body">
         <span class="convener-role">Founder &amp; Convener</span>
@@ -226,7 +227,7 @@
 <footer class="site" id="site-footer"></footer>
 
 <script type="module">
-  import { $, $$, mountNav, mountFooter, loadImages } from '/app.js';
+  import { $, $$, mountNav, mountFooter, loadImages, cachedMember } from '/app.js';
   import { startMotion } from '/motion.js';
   import { renderSocial } from '/social.js';
 
@@ -329,14 +330,32 @@
       if (!gal.children.length) $('#gallery').hidden = true;
     }).observe(f, { attributes: true, attributeFilter: ['class'] });
   });
-  const member = await mountNav();
-  if (member) {
-    // Signed in: send the "join" buttons to the account instead, and hide "I already have an account".
+  // Arriving from another page at /#gallery, /#works…: those sections are built by this script, so the browser's own jump
+  // happened before they existed and left people at the top. Jump now, and once more after photos load (unless they've
+  // started scrolling themselves).
+  if (location.hash.length > 1) {
+    let moved = false;
+    ['wheel', 'touchstart', 'keydown'].forEach((ev) => window.addEventListener(ev, () => { moved = true; }, { once: true, passive: true }));
+    const jump = () => {
+      const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (t && !t.hidden && !moved) t.scrollIntoView({ block: 'start', behavior: 'instant' });   // jump, don't animate down the whole page
+    };
+    jump(); requestAnimationFrame(jump);
+    window.addEventListener('load', jump, { once: true });
+  }
+  // Signed in: send the "join" buttons to the account instead (straight away if this device remembers them).
+  const welcome = (member) => {
     $$('[data-nav="join"]').forEach((a) => { a.href = '/account'; a.textContent = member.profileComplete ? 'Go to my account' : 'Complete my profile'; });
     $$('[data-nav="login"]').forEach((a) => a.remove());
     const band = $('.join-band h2'); if (band) band.textContent = member.full_name ? `Welcome back, ${member.full_name.split(' ')[0]}.` : 'Welcome to the movement.';
     const bandP = $('.join-band p'); if (bandP) bandP.textContent = 'Keep your details up to date so we can connect you with volunteers in your ward and polling unit.';
-  }
+  };
+  const remembered = cachedMember();
+  if (remembered) welcome(remembered);
+  document.documentElement.classList.add('page-ready');
+  const member = await mountNav();
+  if (member && !remembered) welcome(member);
+  if (!member && remembered) location.reload();                       // logged out elsewhere: show the visitor version
 </script>
 </body>
 </html>
