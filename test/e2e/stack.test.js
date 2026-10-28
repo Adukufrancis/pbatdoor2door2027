@@ -69,7 +69,7 @@ async function codeFor(to) {
 async function signIn(c, identifier, deliveredTo = identifier) {
   const start = await c.post('/api/auth/start', { identifier });
   assert.equal(start.status, 200, start.text);
-  const verify = await c.post('/api/auth/verify', { identifier, code: await codeFor(deliveredTo) });
+  const verify = await c.post('/api/auth/verify', { identifier, code: await codeFor(deliveredTo), consent: true });
   assert.equal(verify.status, 200, verify.text);
   return verify.data;
 }
@@ -100,17 +100,15 @@ if (PHASE === 'main') {
 
   test('pages and legacy redirects', async () => {
     const c = client();
-    for (const p of ['/', '/login', '/account']) {
+    for (const p of ['/', '/login', '/join', '/signup', '/account', '/contact', '/privacy', '/terms']) {
       const r = await c.get(p);
       assert.equal(r.status, 200, p);
       assert.match(r.headers.get('content-type'), /text\/html/);
       assert.equal(r.headers.get('cache-control'), 'no-cache');
     }
-    for (const [from, to] of [['/join', '/login'], ['/signup', '/login'], ['/welcome', '/account']]) {
-      const r = await c.get(from);
-      assert.equal(r.status, 302, from);
-      assert.equal(r.headers.get('location'), to);
-    }
+    const welcome = await c.get('/welcome');
+    assert.equal(welcome.status, 302);
+    assert.equal(welcome.headers.get('location'), '/account');
     assert.equal((await c.get('/api/nope')).status, 404);
   });
 
@@ -144,6 +142,7 @@ if (PHASE === 'main') {
     assert.equal(data.states.length, 37);
     assert.equal(data.sms, true);
     assert.equal(data.phoneVia, 'server');
+    assert.equal(data.turnstile, null);
     assert.equal(data.firebase, null);
   });
 
@@ -175,7 +174,13 @@ if (PHASE === 'main') {
     assert.equal(wrong.status, 400);
     assert.match(wrong.data.error, /4 attempts left/);
 
-    const ok = await devA1.post('/api/auth/verify', { identifier: emailA, code: await codeFor(emailA) });
+    const need = await devA1.post('/api/auth/verify', { identifier: emailA, code: await codeFor(emailA) });
+    assert.equal(need.status, 200, need.text);
+    assert.equal(need.data.needsConsent, true);
+    assert.ok(need.data.pending);
+    assert.equal(devA1.sid, null, 'no session until the new person agrees');
+
+    const ok = await devA1.post('/api/auth/join', { pending: need.data.pending, consent: true });
     assert.equal(ok.status, 200, ok.text);
     assert.equal(ok.data.isNew, true);
     assert.equal(ok.data.needsProfile, true);

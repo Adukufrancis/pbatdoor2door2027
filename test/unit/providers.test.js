@@ -51,8 +51,16 @@ test('provider order: Brevo wins over ZeptoMail, which wins over Resend', () => 
 test('CSP hashes match every inline script in the pages', () => {
   const pub = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'public');
   const hashes = inlineScriptHashes(pub);
-  assert.equal(hashes.length, 3);
-  const html = fs.readFileSync(path.join(pub, 'login.html'), 'utf8');
-  const body = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
-  assert.ok(hashes.includes(`'sha256-${crypto.createHash('sha256').update(body).digest('base64')}'`));
+  const found = [];
+  for (const file of fs.readdirSync(pub).filter((f) => f.endsWith('.html'))) {
+    const html = fs.readFileSync(path.join(pub, file), 'utf8');
+    for (const m of html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)) {
+      if (!m[1].trim()) continue;
+      const hash = `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`;
+      found.push(hash);
+      assert.ok(hashes.includes(hash), `${file} inline script is missing from CSP`);
+    }
+  }
+  assert.ok(found.length >= 3);
+  assert.equal(hashes.length, new Set(found).size);
 });

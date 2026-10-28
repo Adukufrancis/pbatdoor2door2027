@@ -20,20 +20,22 @@ export function inlineScriptHashes(publicDir) {
   return [...hashes];
 }
 
-export function securityHeaders({ publicDir, isProd, firebase, mode = process.env.CSP_MODE || 'enforce' }) {
+export function securityHeaders({ publicDir, isProd, firebase, turnstile, mode = process.env.CSP_MODE || 'enforce' }) {
   const firebaseScript = firebase ? [new URL(firebase.sdk).origin, 'https://www.google.com', 'https://www.gstatic.com', 'https://apis.google.com'] : [];
   const firebaseConnect = firebase ? ['https://identitytoolkit.googleapis.com', 'https://securetoken.googleapis.com', 'https://www.googleapis.com', 'https://www.google.com'] : [];
   const firebaseFrame = firebase ? ['https://www.google.com', 'https://recaptcha.google.com', `https://${firebase.authDomain}`] : [];
+  const turnstileOrigins = turnstile ? ['https://challenges.cloudflare.com'] : [];
+  const frames = [...firebaseFrame, ...turnstileOrigins];
 
   const directives = {
     defaultSrc: ["'self'"],
-    scriptSrc: ["'self'", ...inlineScriptHashes(publicDir), ...firebaseScript],
+    scriptSrc: ["'self'", ...inlineScriptHashes(publicDir), ...firebaseScript, ...turnstileOrigins],
     scriptSrcAttr: ["'none'"],
     styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
     fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
     imgSrc: ["'self'", 'data:', 'blob:', 'https://commons.wikimedia.org', 'https://upload.wikimedia.org'],
     connectSrc: ["'self'", ...firebaseConnect],
-    frameSrc: firebaseFrame.length ? firebaseFrame : ["'none'"],
+    frameSrc: frames.length ? frames : ["'none'"],
     workerSrc: ["'self'"],
     manifestSrc: ["'self'"],
     objectSrc: ["'none'"],
