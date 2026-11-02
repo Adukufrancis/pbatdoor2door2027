@@ -646,6 +646,7 @@ export async function mountFooter() {
     </div>`;
   fillSite(box);
   renderSocial(box);
+  const util = document.querySelector('.util'); if (util) renderSocial(util);   // social icons in the top bar
 }
 
 // ---- Offline support ------------------------------------------------------------

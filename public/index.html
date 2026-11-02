@@ -24,7 +24,7 @@
 <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 <link rel="preload" as="image" href="/images/hero.jpg" fetchpriority="high">
 </head>
@@ -32,14 +32,22 @@
 <a class="skip" href="#main">Skip to content</a>
 <div class="progress" aria-hidden="true"></div>
 
+<div class="util" aria-label="Site information">
+  <div class="wrap">
+    <span>Official website of the PBAT Door-to-Door Movement</span>
+    <span class="util-icons" data-social="icons"></span>
+  </div>
+</div>
 <nav class="nav" id="site-nav">
   <div class="wrap">
     <a class="brand" href="/" aria-label="PBAT Door to Door home">
       <img class="brand-logo" src="/images/logo-transparent.png" alt="PBAT Door to Door Movement 2027" width="900" height="563">
+      <span class="brand-text"><b>PBAT Door-to-Door Movement</b><small>Renewed Hope 2027 · Every state, every LGA, every ward</small></span>
     </a>
     <div class="nav-links">
       <a href="/">Home</a>
       <a href="/#events">Events</a>
+      <a href="/#leadership">Leadership</a>
       <a href="/#movement">Movement</a>
       <a href="/#about">The President</a>
       <a href="/#works">His works</a>
@@ -89,11 +97,7 @@
   </div>
 </div>
 
-<div class="ticker" aria-hidden="true">
-  <div class="ticker-track">
-    <span>Renewed Hope</span><i>★</i><span>Door to Door</span><i>★</i><span>Ward to Ward</span><i>★</i><span>PBAT 2027</span><i>★</i><span>Every Polling Unit Counts</span><i>★</i><span>Join the Movement</span><i>★</i><span>Every Ward. Every Street. Every Door.</span><i>★</i>
-  </div>
-</div>
+<div class="ribbon" aria-hidden="true"><div class="wrap">Renewed Hope<i>·</i>Door to Door<i>·</i>Ward to Ward<i>·</i>Every Polling Unit Counts<i>·</i>PBAT 2027</div></div>
 
 <section class="block events-sec" id="events">
   <div class="wrap">
@@ -103,6 +107,38 @@
       <p>Rallies, door-to-door outreach and volunteer meetings near you. Come along, bring a friend.</p>
     </div>
     <div class="events" id="events-grid" aria-live="polite"><p class="events-empty">Loading events…</p></div>
+  </div>
+</section>
+
+<section class="block leaders-sec" id="leadership">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">The leadership</span>
+      <h2>The people behind the movement</h2>
+    </div>
+    <div class="leaders">
+      <article class="leader reveal">
+        <figure class="leader-photo ph" data-initials="BAT"><img alt="President Bola Ahmed Tinubu" data-sources="/images/hero.jpg"></figure>
+        <h3>Bola Ahmed Tinubu, GCFR</h3>
+        <span class="leader-role">President, Federal Republic of Nigeria</span>
+        <p>16th President of Nigeria, sworn in at Eagle Square, Abuja, on 29 May 2023.</p>
+        <a href="#about">Read more</a>
+      </article>
+      <article class="leader reveal">
+        <figure class="leader-photo ph" data-initials="T"><img alt="High Chief Government Oweizide Ekpemupolo (Tompolo)" data-sources="/images/tompolo.jpg?v=2"></figure>
+        <h3>High Chief Government Oweizide Ekpemupolo (Tompolo)</h3>
+        <span class="leader-role">Founder &amp; Convener</span>
+        <p>Founder, funder and leader of the PBAT Door-to-Door Movement.</p>
+        <a href="#movement">Read more</a>
+      </article>
+      <article class="leader reveal">
+        <figure class="leader-photo ph missing" data-initials="SA"></figure>
+        <h3>Sunday Adekanbi Asuku</h3>
+        <span class="leader-role">National Coordinator &amp; Director-General</span>
+        <p>Sworn in as National Coordinator and Director-General at Transcorp, Abuja, on 9 July 2026.</p>
+        <a href="#movement">Read more</a>
+      </article>
+    </div>
   </div>
 </section>
 
@@ -148,10 +184,10 @@
       <div class="mv-do reveal">
         <h3>What we do</h3>
         <ul>
-          <li><i>🚪</i><div><strong>Door-to-door outreach</strong>Visiting homes, markets, churches and mosques to share the President's record.</div></li>
-          <li><i>🗳️</i><div><strong>Voter education</strong>Helping people check their registration, collect their PVC and find their polling unit.</div></li>
-          <li><i>📣</i><div><strong>Explaining the reforms</strong>Breaking down federal policies for rural and urban voters alike.</div></li>
-          <li><i>🚐</i><div><strong>Mobility for coordinators</strong>Campaign vehicles handed to LGA and ward coordinators state by state.</div></li>
+          <li><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4h11v17M16 4l3 1v16M3 21h18M12.5 12.5h.01"/></svg></i><div><strong>Door-to-door outreach</strong>Visiting homes, markets, churches and mosques to share the President's record.</div></li>
+          <li><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16v8H4zM8 12V5h8v7M10 8.5h4"/></svg></i><div><strong>Voter education</strong>Helping people check their registration, collect their PVC and find their polling unit.</div></li>
+          <li><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10v4h3l6 4V6l-6 4zM16 9a4 4 0 010 6M18.5 6.5a7.5 7.5 0 010 11"/></svg></i><div><strong>Explaining the reforms</strong>Breaking down federal policies for rural and urban voters alike.</div></li>
+          <li><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16V7h12v9M15 10h4l2 3v3h-6"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg></i><div><strong>Mobility for coordinators</strong>Campaign vehicles handed to LGA and ward coordinators state by state.</div></li>
         </ul>
       </div>
     </div>

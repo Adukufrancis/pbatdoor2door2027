@@ -860,3 +860,132 @@ html { scroll-padding-top: 84px; }
 .video { aspect-ratio: 9 / 16; border-radius: var(--radius); overflow: hidden; background: #111; box-shadow: var(--shadow); }
 .video iframe { width: 100%; height: 100%; border: 0; display: block; }
 @media (max-width: 560px) { .videos { grid-template-columns: 1fr; justify-items: center; } .video { width: min(340px, 100%); } }
+
+/* =====================================================================
+   Formal look (redesign, Option B): official header, serif headings,
+   square-ish corners, gold rules. The hero and the President's portrait keep their old style.
+   ===================================================================== */
+:root { --display: "Source Serif 4", Georgia, "Times New Roman", serif; --radius: 6px; --soft: #f4f6f4; }
+body { background: #fff; }
+.card, .card-lite { border-radius: 8px; }
+.btn { border-radius: 6px; }
+
+/* top bar + header */
+.util { background: var(--green-deep); color: #fff; font-size: 13px; }
+.util .wrap { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 36px; }
+.util-icons { display: flex; gap: 6px; }
+.util .social-icon { width: 28px; height: 28px; background: transparent; border-color: rgba(255,255,255,.28); color: #fff; }
+.util .social-icon svg { width: 14px; height: 14px; }
+.util .social-icon:hover { background: var(--gold); border-color: var(--gold); color: var(--green-deep); }
+.util .social-icon.soon { opacity: .45; }
+.nav, .nav.scrolled { background: #fff; backdrop-filter: none; }
+.brand { gap: 12px; }
+.brand-text { display: grid; gap: 3px; }
+.brand-text b { font: 700 19px/1.1 var(--display); color: var(--green-deep); letter-spacing: 0; }
+.brand-text small { font: 400 12px var(--body); color: var(--muted); letter-spacing: 0; margin: 0; }
+.nav-links { gap: 20px; }
+.nav-links a { font-size: 14.5px; }
+.nav-links a::after { height: 3px; border-radius: 0; background: var(--gold); bottom: -4px; }
+.nav-links a[aria-current="page"] { color: var(--green-deep); }
+.brand-text b, .nav-links a, .nav-auth a { white-space: nowrap; }
+.brand-text small { display: none; }
+.brand { flex: none; }
+@media (max-width: 1519px) and (min-width: 761px) { .brand-text { display: none; } }
+@media (max-width: 1240px) { .nav-links { gap: 15px; } .nav-links a { font-size: 14px; } }
+@media (max-width: 760px) {
+  .brand-text { display: grid; } .brand-text b { font-size: 16px; }
+  .util .wrap > span:first-child { display: none; } .util .wrap { justify-content: center; }
+}
+@media (max-width: 380px) { .brand-text { display: none; } }
+
+/* section headings: serif, deep green, gold rule */
+.section-head h2 { font: 700 clamp(30px, 3.4vw, 40px)/1.15 var(--display); letter-spacing: 0; color: var(--green-deep); }
+.section-head h2::after { content: ""; display: block; width: 56px; height: 4px; background: var(--gold); margin-top: 14px; }
+.section-head .eyebrow::before { display: none; }
+.section-head .eyebrow { letter-spacing: .1em; font-weight: 700; }
+.hero h1 { font-weight: 700; letter-spacing: -.01em; }
+.stat b, .mv-stat b, .fact b, .work .figure, .event-date b { font-weight: 700; }
+
+/* gold slogan ribbon (replaces the moving strip) */
+.ribbon { background: var(--gold); color: var(--ink); font: 700 13px var(--body); letter-spacing: .1em; text-transform: uppercase; padding: 11px 0; }
+.ribbon .wrap { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; text-align: center; }
+.ribbon i { font-style: normal; opacity: .6; }
+
+/* events */
+.events-sec { background: #fff; }
+.event:hover { transform: none; }
+.event-date { border-radius: 4px; }
+
+/* leadership */
+.leaders-sec { background: var(--soft); border-block: 1px solid var(--line); }
+.leaders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.leader { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+.leader-photo { margin: 0 0 8px; width: 136px; height: 136px; border-radius: 50%; overflow: hidden; background: #e6ece8; }
+.leader-photo img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.leader-photo.missing::after { font-size: 40px; border-radius: 50%; }
+.leader h3 { margin: 0; font: 700 21px/1.25 var(--display); color: var(--green); }
+.leader-role { font-size: 12.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.leader p { margin: 4px 0; font-size: 15px; color: #333d38; line-height: 1.55; }
+.leader a { font-weight: 600; text-decoration: none; margin-top: auto; }
+.leader a:hover { text-decoration: underline; }
+@media (max-width: 860px) { .leaders { grid-template-columns: 1fr; } }
+
+/* the movement */
+.convener { background: var(--soft); border: 1px solid var(--line); border-radius: 6px; }
+.convener::after { display: none; }
+.convener-photo { border-radius: 4px; box-shadow: none; }
+.convener-role { background: none; border: 0; padding: 0; color: var(--green); }
+.convener h3 { font-weight: 700; color: var(--green-deep); }
+.convener blockquote { border: 1px solid var(--line); border-radius: 4px; box-shadow: none; color: var(--green-deep); font-weight: 600; }
+.mv-stats { gap: 0; background: var(--green-deep); border-radius: 6px; overflow: hidden; }
+.mv-stat { border-radius: 0; border-left: 1px solid rgba(255,255,255,.14); }
+.mv-stat:first-child { border-left: 0; }
+.mv-stat::after { display: none; }
+.mv-how, .mv-do { background: #fff; border-radius: 6px; }
+.mv-how h3, .mv-do h3 { font-weight: 700; color: var(--green-deep); }
+.mv-chain li { border-radius: 4px; }
+.mv-chain li::before { border-radius: 4px; }
+.mv-do li i { color: var(--green); background: var(--soft); border-radius: 6px; }
+.mv-do li i svg { width: 22px; height: 22px; }
+.mv-timeline::before { background: var(--gold); }
+@media (max-width: 760px) { .mv-stat:nth-child(3) { border-left: 0; } .mv-stat { border-top: 1px solid rgba(255,255,255,.14); } }
+
+/* about the President: light and formal */
+.about-sec { background: var(--soft); color: var(--ink); border-block: 1px solid var(--line); }
+.about-sec::before, .about-sec::after { display: none; }
+.about-sec .section-head .eyebrow { color: var(--green); }
+.about-sec .section-head p { color: var(--muted); }
+.fact { background: #fff; border: 1px solid var(--line); border-radius: 6px; backdrop-filter: none; }
+.fact b { color: var(--green-deep); }
+.fact span { color: var(--muted); }
+.about-sec .timeline::before { background: var(--line); }
+.about-sec .timeline::after { box-shadow: none; }
+.about-sec .timeline li::before { background: #fff; border-color: var(--line); }
+.about-sec .timeline li.lit::before { background: var(--gold); border-color: #fff; box-shadow: 0 0 0 4px rgba(226,167,46,.25); }
+.about-sec .timeline time { color: var(--muted); }
+.about-sec .timeline li.lit time { color: var(--green); }
+.about-sec .timeline p, .about-sec .timeline li.lit p { color: var(--ink); background: #fff; border-color: var(--line); border-radius: 6px; }
+
+/* his works */
+.work { border-radius: 6px; }
+.work::before { transform: none; }
+.work:hover { transform: none; }
+.work-filters button[aria-selected="true"] { background: var(--green-deep); border-color: var(--green-deep); }
+
+/* gallery, videos, social */
+.gallery figure, .video { border-radius: 4px; }
+.social { background: var(--soft); border-block: 1px solid var(--line); }
+.social-card { border-radius: 6px; align-items: flex-start; text-align: left; padding: 20px; }
+.social-card:hover { transform: none; }
+.social-ico, .s-instagram .social-ico { background: var(--green-deep); border-radius: 6px; width: 44px; height: 44px; }
+.social-card:hover .social-ico { transform: none; }
+
+/* welcome / join card */
+.join-band { background: var(--green-deep); border-radius: 6px; border-top: 5px solid var(--gold); }
+.join-band::after { display: none; }
+.join-band h2 { font-weight: 700; }
+.join-band .cta { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 760px) { .join-band .cta { justify-content: flex-start; } }
+
+/* footer headings in serif */
+footer.site .foot-brand { font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: 0; }

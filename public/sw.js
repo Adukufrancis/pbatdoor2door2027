@@ -7,7 +7,7 @@
 // - Sign-in and account data (/api): never saved; always live.
 //
 // Bump VERSION when you change the list below; old saved copies are then cleared.
-const VERSION = 'v4';   // v4: homepage Events section (from Zoni)
+const VERSION = 'v5';   // v5: formal redesign (Option B)
 const SHELL = `pbat-shell-${VERSION}`;
 const RUNTIME = `pbat-runtime-${VERSION}`;
 const GEO = 'pbat-geo-v1';
