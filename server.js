@@ -521,6 +521,46 @@ app.get('/api/geo/near', (req, res) => {
 mountVolunteer(app, { store, h, normalizePhone, STATES, roleOf });
 
 // Unknown API routes get JSON, not the static 404 page.
+// ---- Events: managed in Zoni (Website → Events), shown on the homepage without a deploy ----
+// The website asks Zoni for published upcoming events and keeps a copy for a minute, so visitors only ever
+// load from this site (no change to the security policy) and the homepage still works if Zoni is briefly down.
+const ZONI_URL = String(process.env.ZONI_URL || 'https://zoni.pbatdoor2door2027.org').replace(/\/+$/, '');
+const EVENTS_TTL = 60_000;
+let eventsCache = { at: 0, events: null };
+const zoniImageId = (url) => (/\/api\/public\/images\/(\d+)$/.exec(String(url || '')) || [])[1];
+async function zoniEvents() {
+  if (eventsCache.events && Date.now() - eventsCache.at < EVENTS_TTL) return eventsCache.events;
+  try {
+    const r = await fetch(`${ZONI_URL}/api/public/events?limit=12`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) throw new Error(`Zoni answered ${r.status}`);
+    const list = (await r.json()).events || [];
+    const events = list.slice(0, 12).map((e) => ({
+      id: Number(e.id), title: String(e.title || ''), startsAt: String(e.startsAt || ''), endsAt: String(e.endsAt || ''),
+      location: String(e.location || ''), summary: String(e.summary || ''), body: String(e.body || ''),
+      link: /^https?:\/\//i.test(e.link || '') ? String(e.link) : '',
+      image: zoniImageId(e.image) ? `/api/events/image/${zoniImageId(e.image)}` : '',
+    }));
+    eventsCache = { at: Date.now(), events };
+    return events;
+  } catch (err) {
+    logger.warn({ err: err.message }, 'Could not load events from Zoni; showing the last copy');
+    eventsCache.at = Date.now() - EVENTS_TTL + 15_000;          // try again in 15 seconds, not on every visit
+    return eventsCache.events || [];
+  }
+}
+app.get('/api/events', h(async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60').json({ events: await zoniEvents() });
+}));
+// Event pictures, passed through from Zoni (only Zoni's public event images; JPG / PNG / WEBP).
+app.get('/api/events/image/:id(\\d+)', h(async (req, res) => {
+  const r = await fetch(`${ZONI_URL}/api/public/images/${req.params.id}`, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+  const type = r?.headers.get('content-type') || '';
+  if (!r || !r.ok || !/^image\/(jpeg|png|webp)$/.test(type)) return res.status(404).json({ error: 'Not found.' });
+  const buf = Buffer.from(await r.arrayBuffer());
+  if (buf.length > 6 * 1024 * 1024) return res.status(404).json({ error: 'Not found.' });
+  res.set({ 'Content-Type': type, 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' }).send(buf);
+}));
+
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found.' }));
 
 // /join and /signup show the same login.html as /login; the page reads the path to show Join vs Log in.
