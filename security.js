@@ -29,7 +29,9 @@ export function securityHeaders({ publicDir, isProd, firebase, turnstile, mode =
   ] : [];
   const firebaseFrame = firebase ? ['https://www.google.com', 'https://recaptcha.google.com', `https://${firebase.authDomain}`] : [];
   const turnstileOrigins = turnstile ? ['https://challenges.cloudflare.com'] : [];
-  const frames = [...firebaseFrame, ...turnstileOrigins];
+  // YouTube videos on the homepage, in privacy-enhanced mode (no YouTube cookies until someone presses play).
+  const videoFrames = ['https://www.youtube-nocookie.com'];
+  const frames = [...firebaseFrame, ...turnstileOrigins, ...videoFrames];
 
   const directives = {
     defaultSrc: ["'self'"],

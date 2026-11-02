@@ -39,10 +39,12 @@
     </a>
     <div class="nav-links">
       <a href="/">Home</a>
+      <a href="/#events">Events</a>
       <a href="/#movement">Movement</a>
       <a href="/#about">The President</a>
       <a href="/#works">His works</a>
       <a href="/#gallery">Gallery</a>
+      <a href="/#videos">Videos</a>
     </div>
     <div class="nav-auth" id="nav-auth">
       <a class="nav-link" href="/login">Log in</a>
@@ -92,6 +94,17 @@
     <span>Renewed Hope</span><i>★</i><span>Door to Door</span><i>★</i><span>Ward to Ward</span><i>★</i><span>PBAT 2027</span><i>★</i><span>Every Polling Unit Counts</span><i>★</i><span>Join the Movement</span><i>★</i><span>Every Ward. Every Street. Every Door.</span><i>★</i>
   </div>
 </div>
+
+<section class="block events-sec" id="events">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Events</span>
+      <h2>Where to find us next</h2>
+      <p>Rallies, door-to-door outreach and volunteer meetings near you. Come along, bring a friend.</p>
+    </div>
+    <div class="events" id="events-grid" aria-live="polite"><p class="events-empty">Loading events…</p></div>
+  </div>
+</section>
 
 <section class="block movement" id="movement">
   <div class="wrap">
@@ -198,6 +211,17 @@
   </div>
 </section>
 
+<section class="block videos-sec" id="videos" hidden>
+  <div class="wrap">
+    <div class="section-head reveal">
+      <span class="eyebrow">Watch</span>
+      <h2>The movement in action</h2>
+      <p>Short videos from the field. Share them with friends and family.</p>
+    </div>
+    <div class="videos" id="videos-grid"></div>
+  </div>
+</section>
+
 <section class="block social" id="social">
   <div class="wrap">
     <div class="section-head reveal">
@@ -228,7 +252,7 @@
 
 <script type="module">
   import { $, $$, mountNav, mountFooter, loadImages, cachedMember } from '/app.js';
-  import { startMotion } from '/motion.js';
+  import { startMotion, reveal } from '/motion.js';
   import { renderSocial } from '/social.js';
 
   // ---- His works: edit this list to add or update achievements ----
@@ -317,6 +341,69 @@
     </figure>`).join('');
 
   loadImages();
+  // ---- Videos: paste YouTube links here (Shorts, normal videos or youtu.be links all work). Newest first. ----
+  const VIDEOS = [
+    'https://youtube.com/shorts/lpKgyclBXN4',
+  ];
+  const ytId = (url) => (/(?:shorts\/|youtu\.be\/|[?&]v=|embed\/)([\w-]{11})/.exec(url) || [])[1];
+  (function renderVideos() {
+    const ids = VIDEOS.map(ytId).filter(Boolean);
+    if (!ids.length) return;
+    $('#videos-grid').innerHTML = ids.map((id) => `<div class="video reveal">
+      <iframe src="https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1" title="PBAT Door to Door video"
+        loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </div>`).join('');
+    $('#videos').hidden = false;
+  })();
+
+  // ---- Events: added and published in Zoni (Website → Events); they appear here within a minute ----
+  const evDate = (s) => new Date(`${s.slice(0, 10)}T12:00:00Z`);
+  const evTime = (s) => { const [h, m] = s.slice(11, 16).split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`; };
+  const evWhen = (e) => {
+    const day = evDate(e.startsAt).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+    if (!e.endsAt) return `${day} · ${evTime(e.startsAt)}`;
+    if (e.endsAt.slice(0, 10) === e.startsAt.slice(0, 10)) return `${day} · ${evTime(e.startsAt)} – ${evTime(e.endsAt)}`;
+    return `${day}, ${evTime(e.startsAt)} – ${evDate(e.endsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' })}, ${evTime(e.endsAt)}`;
+  };
+  // "Add to Google Calendar" (times are Lagos time).
+  const gcal = (e) => {
+    const t = (s) => s.replace(/[-:]/g, '').slice(0, 13) + '00';
+    const end = e.endsAt || `${e.startsAt.slice(0, 11)}${String(Math.min(23, Number(e.startsAt.slice(11, 13)) + 2)).padStart(2, '0')}${e.startsAt.slice(13, 16)}`;
+    const q = new URLSearchParams({ action: 'TEMPLATE', text: e.title, dates: `${t(e.startsAt)}/${t(end)}`, ctz: 'Africa/Lagos',
+      location: e.location || '', details: [e.summary, e.link].filter(Boolean).join('\n') });
+    return `https://calendar.google.com/calendar/render?${q}`;
+  };
+  async function renderEvents() {
+    const grid = $('#events-grid');
+    let events = [];
+    try { events = (await (await fetch('/api/events')).json()).events || []; } catch {}
+    if (!events.length) {
+      grid.innerHTML = '<p class="events-empty">No upcoming events right now. Follow us below to hear about the next one.</p>';
+      return;
+    }
+    grid.innerHTML = events.map((e) => {
+      const d = evDate(e.startsAt);
+      return `<article class="event reveal">
+        <div class="event-media">${e.image ? `<img src="${esc(e.image)}" alt="" loading="lazy" decoding="async">` : ''}
+          <div class="event-date"><b>${d.getUTCDate()}</b><span>${d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}</span></div></div>
+        <div class="event-body">
+          <h3>${esc(e.title)}</h3>
+          <p class="event-meta">${esc(evWhen(e))}</p>
+          ${e.location ? `<p class="event-meta">📍 ${esc(e.location)}</p>` : ''}
+          ${e.summary ? `<p>${esc(e.summary)}</p>` : ''}
+          ${e.body ? `<details><summary>More details</summary><p class="event-more">${esc(e.body)}</p></details>` : ''}
+          <div class="event-actions">
+            ${e.link ? `<a class="btn small" href="${esc(e.link)}" target="_blank" rel="noopener">More info</a>` : ''}
+            <a class="btn small ghost" href="${esc(gcal(e))}" target="_blank" rel="noopener">Add to calendar</a>
+          </div>
+        </div>
+      </article>`;
+    }).join('');
+    grid.querySelectorAll('.event img').forEach((img) => img.addEventListener('error', () => img.remove()));
+    reveal(grid);
+  }
+  renderEvents();
+
   renderSocial();
   mountFooter();
   startMotion();
